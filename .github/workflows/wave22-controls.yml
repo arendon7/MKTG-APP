@@ -21,10 +21,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Compile importer
-        run: python -m py_compile scripts/import_wave21_release.py
+      - name: Compile control scripts
+        run: |
+          python -m py_compile scripts/import_wave21_release.py
+          python -m py_compile scripts/wave22_evidence_guard.py
+          python -m py_compile scripts/package_wave22_evidence.py
 
-      - name: Import guard tests
+      - name: Control tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
 
       - name: Shell syntax
@@ -39,15 +42,34 @@ jobs:
           grep -q "install_app13_uat_kit_macos.sh" RUN_WAVE22_MAC_UAT.command
           grep -q "run_app13_uat_kit.sh" RUN_WAVE22_MAC_UAT.command
 
-      - name: Baseline contract sanity
+      - name: Baseline and UAT contract sanity
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          p = json.loads(Path('docs/BASELINE_WAVE21.json').read_text())
-          assert p['version'] == '0.5.5a1'
-          assert p['sha256'] == 'd241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861'
-          assert p['external_gates']['r22'] == 'PHYSICALLY_UNBOUND'
-          assert p['wave22_policy']['feature_freeze'] is True
-          print('Wave 21 baseline contract: PASS')
+
+          expected_sha = 'd241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861'
+          baseline = json.loads(Path('docs/BASELINE_WAVE21.json').read_text())
+          scenarios = json.loads(Path('docs/WAVE22_UAT_SCENARIOS.json').read_text())
+          status = json.loads(Path('docs/WAVE22_UAT_STATUS_TEMPLATE.json').read_text())
+
+          assert baseline['version'] == '0.5.5a1'
+          assert baseline['sha256'] == expected_sha
+          assert baseline['external_gates']['r22'] == 'PHYSICALLY_UNBOUND'
+          assert baseline['wave22_policy']['feature_freeze'] is True
+          assert scenarios['baseline_version'] == baseline['version']
+          assert scenarios['baseline_sha256'] == expected_sha
+          assert status['baseline']['version'] == baseline['version']
+          assert status['baseline']['sha256'] == expected_sha
+          assert status['external_gates']['r22'] == 'PHYSICALLY_UNBOUND'
+          assert status['external_gates']['live_providers'] == 'BLOCKED'
+
+          ids = [s['id'] for group in scenarios['profiles'].values() for s in group]
+          status_ids = [s['id'] for s in status['scenarios']]
+          assert ids == ['CORE-007', 'CORE-008', 'CORE-009', 'MAC-001', 'MAC-002', 'MAC-003']
+          assert status_ids == ids
+          assert all(s['status'] == 'NOT_RUN' for s in status['scenarios'])
+          assert status['signoff']['core_uat'] == 'NOT_SIGNED'
+          assert status['signoff']['standalone_mac_uat'] == 'NOT_SIGNED'
+          print('Wave 21/Wave 22 control contract: PASS')
           PY
