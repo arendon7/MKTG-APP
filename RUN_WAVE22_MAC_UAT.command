@@ -6,6 +6,8 @@ cd "$ROOT"
 
 EXPECTED_NAME="BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip"
 EXPECTED_SHA="d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861"
+STATUS_DIR="$ROOT/uat-evidence"
+STATUS_FILE="$STATUS_DIR/WAVE22_UAT_STATUS.json"
 
 say_step() { printf '\n==> %s\n' "$1"; }
 fail() { printf '\nERROR: %s\n' "$1" >&2; printf '\nNo se modificó R22 ni se activó ningún provider.\n' >&2; exit 1; }
@@ -54,6 +56,18 @@ fi
 
 bash scripts/wave22_mac_preflight.sh "$ARCHIVE"
 
+say_step "Inicializando estado privado de Wave 22"
+mkdir -p "$STATUS_DIR"
+if [[ ! -f "$STATUS_FILE" ]]; then
+  cp docs/WAVE22_UAT_STATUS_TEMPLATE.json "$STATUS_FILE"
+  printf 'Estado creado: %s\n' "$STATUS_FILE"
+else
+  printf 'Estado existente preservado: %s\n' "$STATUS_FILE"
+fi
+
+say_step "Gate actual"
+python3 scripts/evaluate_wave22_gate.py --status "$STATUS_FILE"
+
 INSTALLER="$(find app -type f \( -name 'install_app13_uat_kit_macos.sh' -o -name 'install_app13_uat_operator_macos.sh' \) -print -quit 2>/dev/null || true)"
 RUNNER="$(find app -type f -name 'run_app13_uat_kit.sh' -print -quit 2>/dev/null || true)"
 [[ -n "$INSTALLER" ]] || fail "no encontré el instalador UAT dentro de la release importada"
@@ -83,6 +97,15 @@ Dentro de App13:
 3. Ejecuta CORE-007, CORE-008 y CORE-009 realmente.
 4. Registra PASS/FAIL/BLOCKED + evidencia.
 5. No firmes hasta revisar defectos y cambiar al segundo actor.
+
+Estado local:
+  uat-evidence/WAVE22_UAT_STATUS.json
+
+Para consultar el siguiente gate:
+  python3 scripts/evaluate_wave22_gate.py
+
+Para empaquetar evidencia ya saneada:
+  python3 scripts/package_wave22_evidence.py <carpeta-evidencia> --status-json uat-evidence/WAVE22_UAT_STATUS.json
 
 R22 permanece UNBOUND y los providers live permanecen bloqueados.
 EOF
