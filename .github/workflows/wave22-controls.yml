@@ -27,6 +27,7 @@ jobs:
           python -m py_compile scripts/wave22_evidence_guard.py
           python -m py_compile scripts/package_wave22_evidence.py
           python -m py_compile scripts/evaluate_wave22_gate.py
+          python -m py_compile scripts/wave22_uat_operator.py
 
       - name: Control tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
@@ -70,9 +71,24 @@ jobs:
           assert ids == ['CORE-007', 'CORE-008', 'CORE-009', 'MAC-001', 'MAC-002', 'MAC-003']
           assert status_ids == ids
           assert all(s['status'] == 'NOT_RUN' for s in status['scenarios'])
+          assert status['defect_records'] == []
+          assert status['events'] == []
           assert status['signoff']['core_uat'] == 'NOT_SIGNED'
           assert status['signoff']['standalone_mac_uat'] == 'NOT_SIGNED'
           print('Wave 21/Wave 22 control contract: PASS')
+          PY
+
+      - name: UAT state operator smoke
+        run: |
+          python scripts/wave22_uat_operator.py --status /tmp/WAVE22_UAT_STATUS.json init > /tmp/init.json
+          python scripts/wave22_uat_operator.py --status /tmp/WAVE22_UAT_STATUS.json show > /tmp/show.json
+          python - <<'PY'
+          import json
+          p = json.load(open('/tmp/show.json'))
+          assert p['baseline']['version'] == '0.5.5a1'
+          assert len(p['events']) == 1
+          assert p['events'][0]['kind'] == 'STATUS_INITIALIZED'
+          print('UAT state operator smoke: PASS')
           PY
 
       - name: Fresh checkout gate evaluation
