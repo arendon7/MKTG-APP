@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Govern Wave 22 human UAT state without hand-editing JSON.
 
-This CLI records scenario outcomes, defect lifecycle and independent sign-off while
-preserving the certified Wave 21 baseline and Wave 22 external safety gates.
-It never executes product/provider actions and never fabricates acceptance.
+Records scenario outcomes, defect lifecycle and independent sign-off while preserving
+the certified Wave 21 baseline and Wave 22 external safety gates. It never executes
+product/provider actions and never fabricates acceptance.
 """
 
 from __future__ import annotations
@@ -100,6 +100,16 @@ def event(state: dict, kind: str, actor: str, **data: object) -> None:
     state["updated_at_utc"] = state["events"][-1]["at_utc"]
 
 
+def invalidate_signoffs(state: dict, *, include_core: bool) -> None:
+    if include_core:
+        state["signoff"]["core_uat"] = "NOT_SIGNED"
+        state["signoff"]["core_uat_signature"] = None
+    state["signoff"]["standalone_mac_uat"] = "NOT_SIGNED"
+    state["signoff"]["standalone_mac_uat_signature"] = None
+    state["signoff"]["independent_second_actor"] = None
+    state["authority"] = "HUMAN_UAT_IN_PROGRESS"
+
+
 def open_defect(state: dict, *, defect_id: str, severity: str, scenario_id: str, summary: str, actor: str) -> None:
     if severity not in SEVERITIES:
         raise ValueError("severity must be P0, P1, P2 or P3")
@@ -108,23 +118,17 @@ def open_defect(state: dict, *, defect_id: str, severity: str, scenario_id: str,
     if any(d.get("id") == defect_id for d in state.get("defect_records", [])):
         raise ValueError(f"defect already exists: {defect_id}")
     record = {
-        "id": defect_id,
-        "severity": severity,
-        "scenario_id": scenario_id,
-        "summary": summary.strip(),
-        "status": "OPEN",
-        "opened_by": actor.strip(),
-        "opened_at_utc": now(),
-        "closed_by": None,
-        "closed_at_utc": None,
-        "resolution": None,
-        "retest_evidence_ref": None,
+        "id": defect_id.strip(), "severity": severity, "scenario_id": scenario_id,
+        "summary": summary.strip(), "status": "OPEN", "opened_by": actor.strip(),
+        "opened_at_utc": now(), "closed_by": None, "closed_at_utc": None,
+        "resolution": None, "retest_evidence_ref": None,
     }
-    if not record["id"].strip() or not record["summary"] or not record["opened_by"]:
+    if not record["id"] or not record["summary"] or not record["opened_by"]:
         raise ValueError("defect id, summary and actor are required")
     state.setdefault("defect_records", []).append(record)
     recompute_defects(state)
-    event(state, "DEFECT_OPENED", actor.strip(), defect_id=defect_id, severity=severity, scenario_id=scenario_id)
+    invalidate_signoffs(state, include_core=True)
+    event(state, "DEFECT_OPENED", actor.strip(), defect_id=record["id"], severity=severity, scenario_id=scenario_id)
 
 
 def close_defect(state: dict, *, defect_id: str, resolution: str, evidence_ref: str, actor: str) -> None:
@@ -135,27 +139,15 @@ def close_defect(state: dict, *, defect_id: str, resolution: str, evidence_ref: 
         raise ValueError(f"defect is not OPEN: {defect_id}")
     if not resolution.strip() or not evidence_ref.strip() or not actor.strip():
         raise ValueError("resolution, retest evidence and actor are required")
-    defect.update({
-        "status": "VERIFIED",
-        "closed_by": actor.strip(),
-        "closed_at_utc": now(),
-        "resolution": resolution.strip(),
-        "retest_evidence_ref": evidence_ref.strip(),
-    })
+    defect.update({"status": "VERIFIED", "closed_by": actor.strip(), "closed_at_utc": now(),
+                   "resolution": resolution.strip(), "retest_evidence_ref": evidence_ref.strip()})
     recompute_defects(state)
+    invalidate_signoffs(state, include_core=True)
     event(state, "DEFECT_VERIFIED", actor.strip(), defect_id=defect_id)
 
 
-def record_scenario(
-    state: dict,
-    *,
-    scenario_id: str,
-    result: str,
-    evidence_ref: str,
-    note: str,
-    actor: str,
-    defect_id: str | None = None,
-) -> None:
+def record_scenario(state: dict, *, scenario_id: str, result: str, evidence_ref: str,
+                    note: str, actor: str, defect_id: str | None = None) -> None:
     if result not in RESULTS:
         raise ValueError("result must be PASS, FAIL or BLOCKED")
     if not actor.strip() or not evidence_ref.strip() or not note.strip():
@@ -163,7 +155,6 @@ def record_scenario(
     scenarios = scenario_map(state)
     if scenario_id not in scenarios:
         raise ValueError("unknown scenario id")
-    item = scenarios[scenario_id]
     if result in {"FAIL", "BLOCKED"}:
         if not defect_id:
             raise ValueError("FAIL/BLOCKED requires --defect-id for an existing OPEN defect")
@@ -173,20 +164,10 @@ def record_scenario(
     elif defect_id:
         raise ValueError("PASS must not be tied to an open defect")
 
-    item.update({
-        "status": result,
-        "evidence_ref": evidence_ref.strip(),
-        "operator_note": note.strip(),
-        "operator": actor.strip(),
-        "recorded_at_utc": now(),
-        "defect_id": defect_id,
-    })
-    if scenario_id in CORE_IDS:
-        state["signoff"]["core_uat"] = "NOT_SIGNED"
-        state["signoff"]["core_uat_signature"] = None
-    else:
-        state["signoff"]["standalone_mac_uat"] = "NOT_SIGNED"
-        state["signoff"]["standalone_mac_uat_signature"] = None
+    scenarios[scenario_id].update({"status": result, "evidence_ref": evidence_ref.strip(),
+                                   "operator_note": note.strip(), "operator": actor.strip(),
+                                   "recorded_at_utc": now(), "defect_id": defect_id})
+    invalidate_signoffs(state, include_core=scenario_id in CORE_IDS)
     event(state, "SCENARIO_RECORDED", actor.strip(), scenario_id=scenario_id, result=result, defect_id=defect_id)
 
 
@@ -196,6 +177,8 @@ def sign_profile(state: dict, *, profile: str, actor: str, rationale: str | None
     label = "CORE_UAT" if profile == "core" else "STANDALONE_MAC_UAT"
     key = "core_uat" if profile == "core" else "standalone_mac_uat"
     signature_key = f"{key}_signature"
+    if profile == "mac" and state["signoff"].get("core_uat") != "SIGNED":
+        raise ValueError("cannot sign STANDALONE_MAC_UAT before CORE_UAT is signed")
 
     incomplete = [sid for sid in ids if scenarios[sid].get("status") != "PASS"]
     if incomplete:
@@ -218,13 +201,10 @@ def sign_profile(state: dict, *, profile: str, actor: str, rationale: str | None
     if signer in operators:
         raise ValueError("independent sign-off actor must differ from scenario operator(s)")
 
-    signature = {
-        "actor": signer,
-        "signed_at_utc": now(),
-        "scenario_evidence": {sid: scenarios[sid].get("evidence_ref") for sid in ids},
-        "residual_p2_p3": residual,
-        "risk_acceptance_rationale": str(rationale or "").strip() or None,
-    }
+    signature = {"actor": signer, "signed_at_utc": now(),
+                 "scenario_evidence": {sid: scenarios[sid].get("evidence_ref") for sid in ids},
+                 "residual_p2_p3": residual,
+                 "risk_acceptance_rationale": str(rationale or "").strip() or None}
     state["signoff"][key] = "SIGNED"
     state["signoff"][signature_key] = signature
     state["signoff"]["independent_second_actor"] = signer
@@ -252,36 +232,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Govern Wave 22 UAT state")
     parser.add_argument("--status", type=Path, default=Path("uat-evidence/WAVE22_UAT_STATUS.json"))
     sub = parser.add_subparsers(dest="command", required=True)
-
-    p_init = sub.add_parser("init")
-    p_init.add_argument("--template", type=Path, default=Path("docs/WAVE22_UAT_STATUS_TEMPLATE.json"))
-
-    p_record = sub.add_parser("record")
-    p_record.add_argument("scenario_id", choices=ALL_IDS)
-    p_record.add_argument("result", choices=sorted(RESULTS))
-    p_record.add_argument("--actor", required=True)
-    p_record.add_argument("--evidence", required=True)
-    p_record.add_argument("--note", required=True)
-    p_record.add_argument("--defect-id")
-
-    p_open = sub.add_parser("defect-open")
-    p_open.add_argument("defect_id")
-    p_open.add_argument("severity", choices=sorted(SEVERITIES))
-    p_open.add_argument("scenario_id", choices=ALL_IDS)
-    p_open.add_argument("--summary", required=True)
-    p_open.add_argument("--actor", required=True)
-
-    p_close = sub.add_parser("defect-verify")
-    p_close.add_argument("defect_id")
-    p_close.add_argument("--resolution", required=True)
-    p_close.add_argument("--evidence", required=True)
-    p_close.add_argument("--actor", required=True)
-
-    p_sign = sub.add_parser("sign")
-    p_sign.add_argument("profile", choices=("core", "mac"))
-    p_sign.add_argument("--actor", required=True)
-    p_sign.add_argument("--rationale")
-
+    p_init = sub.add_parser("init"); p_init.add_argument("--template", type=Path, default=Path("docs/WAVE22_UAT_STATUS_TEMPLATE.json"))
+    p_record = sub.add_parser("record"); p_record.add_argument("scenario_id", choices=ALL_IDS); p_record.add_argument("result", choices=sorted(RESULTS)); p_record.add_argument("--actor", required=True); p_record.add_argument("--evidence", required=True); p_record.add_argument("--note", required=True); p_record.add_argument("--defect-id")
+    p_open = sub.add_parser("defect-open"); p_open.add_argument("defect_id"); p_open.add_argument("severity", choices=sorted(SEVERITIES)); p_open.add_argument("scenario_id", choices=ALL_IDS); p_open.add_argument("--summary", required=True); p_open.add_argument("--actor", required=True)
+    p_close = sub.add_parser("defect-verify"); p_close.add_argument("defect_id"); p_close.add_argument("--resolution", required=True); p_close.add_argument("--evidence", required=True); p_close.add_argument("--actor", required=True)
+    p_sign = sub.add_parser("sign"); p_sign.add_argument("profile", choices=("core", "mac")); p_sign.add_argument("--actor", required=True); p_sign.add_argument("--rationale")
     sub.add_parser("show")
     args = parser.parse_args()
 
@@ -290,23 +245,14 @@ def main() -> int:
             state = init_state(args.template, args.status)
         else:
             state = load_state(args.status)
-            if args.command == "record":
-                record_scenario(state, scenario_id=args.scenario_id, result=args.result, evidence_ref=args.evidence, note=args.note, actor=args.actor, defect_id=args.defect_id)
-            elif args.command == "defect-open":
-                open_defect(state, defect_id=args.defect_id, severity=args.severity, scenario_id=args.scenario_id, summary=args.summary, actor=args.actor)
-            elif args.command == "defect-verify":
-                close_defect(state, defect_id=args.defect_id, resolution=args.resolution, evidence_ref=args.evidence, actor=args.actor)
-            elif args.command == "sign":
-                sign_profile(state, profile=args.profile, actor=args.actor, rationale=args.rationale)
-            elif args.command == "show":
-                pass
-            if args.command != "show":
-                atomic_write(args.status, state)
-        print(json.dumps(state, indent=2, sort_keys=True))
-        return 0
+            if args.command == "record": record_scenario(state, scenario_id=args.scenario_id, result=args.result, evidence_ref=args.evidence, note=args.note, actor=args.actor, defect_id=args.defect_id)
+            elif args.command == "defect-open": open_defect(state, defect_id=args.defect_id, severity=args.severity, scenario_id=args.scenario_id, summary=args.summary, actor=args.actor)
+            elif args.command == "defect-verify": close_defect(state, defect_id=args.defect_id, resolution=args.resolution, evidence_ref=args.evidence, actor=args.actor)
+            elif args.command == "sign": sign_profile(state, profile=args.profile, actor=args.actor, rationale=args.rationale)
+            if args.command != "show": atomic_write(args.status, state)
+        print(json.dumps(state, indent=2, sort_keys=True)); return 0
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(json.dumps({"status": "BLOCKED", "error": str(exc)}, indent=2))
-        return 3
+        print(json.dumps({"status": "BLOCKED", "error": str(exc)}, indent=2)); return 3
 
 
 if __name__ == "__main__":
