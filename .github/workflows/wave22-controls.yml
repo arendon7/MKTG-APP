@@ -1,0 +1,44 @@
+name: Wave 22 Controls
+
+on:
+  pull_request:
+  push:
+    branches:
+      - wave22/target-mac-uat
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-controls:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile importer
+        run: python -m py_compile scripts/import_wave21_release.py
+
+      - name: Import guard tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Shell syntax
+        run: bash -n scripts/wave22_mac_preflight.sh
+
+      - name: Baseline contract sanity
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('docs/BASELINE_WAVE21.json').read_text())
+          assert p['version'] == '0.5.5a1'
+          assert p['sha256'] == 'd241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861'
+          assert p['external_gates']['r22'] == 'PHYSICALLY_UNBOUND'
+          assert p['wave22_policy']['feature_freeze'] is True
+          print('Wave 21 baseline contract: PASS')
+          PY
