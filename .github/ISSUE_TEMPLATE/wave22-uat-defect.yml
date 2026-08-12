@@ -1,0 +1,94 @@
+name: Wave 22 UAT defect
+description: Defecto reproducible encontrado durante CORE_UAT o STANDALONE_MAC_UAT
+title: "[W22 UAT] "
+labels: []
+body:
+  - type: dropdown
+    id: scenario
+    attributes:
+      label: Escenario
+      options:
+        - CORE-007
+        - CORE-008
+        - CORE-009
+        - MAC-001
+        - MAC-002
+        - MAC-003
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severidad
+      description: P0/P1 bloquean el gate y no pueden aceptarse como riesgo.
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+
+  - type: input
+    id: release_sha
+    attributes:
+      label: SHA-256 de la release probada
+      placeholder: d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861
+    validations:
+      required: true
+
+  - type: input
+    id: mac
+    attributes:
+      label: Mac / macOS
+      description: Modelo, arquitectura y versión de macOS.
+      placeholder: MacBook Pro / arm64 / macOS ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos exactos para reproducir
+      description: No incluyas contraseñas, tokens ni credenciales.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Resultado observado
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidencia
+      description: ID/ruta sanitizada del bundle, captura o log. Nunca pegues secretos.
+    validations:
+      required: true
+
+  - type: textarea
+    id: recovery
+    attributes:
+      label: Recuperación / workaround
+      description: Indica si el operador pudo recuperarse sin intervención del desarrollador.
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Controles
+      options:
+        - label: Confirmo que no incluí secretos ni credenciales en esta incidencia.
+          required: true
+        - label: Confirmo que R22 seguía UNBOUND y que no se activaron providers live durante esta prueba.
+          required: true
