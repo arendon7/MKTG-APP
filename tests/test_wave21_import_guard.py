@@ -1,5 +1,6 @@
 import importlib.util
 import stat
+import tempfile
 import unittest
 import zipfile
 from pathlib import Path
@@ -38,6 +39,17 @@ class Wave21ImportGuardTests(unittest.TestCase):
     def test_rejects_symlink(self):
         with self.assertRaises(ValueError):
             wave21_import.validate_member(self.info("link", stat.S_IFLNK | 0o777))
+
+    def test_extract_rejects_target_that_is_a_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "source.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("README.md", "ok")
+            target = root / "app"
+            target.write_text("not a directory", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not a directory"):
+                wave21_import.extract_strict(archive, target)
 
 
 if __name__ == "__main__":
