@@ -1,0 +1,69 @@
+name: Full Mac Delivery Contract
+
+on:
+  pull_request:
+  push:
+    branches:
+      - wave22/target-mac-uat
+
+permissions:
+  contents: read
+
+jobs:
+  full-mac-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile Full Mac controls
+        run: |
+          python -m py_compile scripts/audit_full_app_payload.py
+          python -m py_compile scripts/audit_full_mac_bundle.py
+          python -m py_compile scripts/evaluate_full_mac_delivery.py
+
+      - name: Builder shell syntax
+        run: bash -n scripts/build_full_mac_app.sh
+
+      - name: Full Mac contract tests
+        run: python -m unittest tests.test_full_mac_app_contract -v
+
+      - name: Delivery definition sanity
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('docs/FULL_MAC_APP_TARGET.json'))
+          assert p['baseline']['version'] == '0.5.5a1'
+          assert p['baseline']['certified_modules'] == 115
+          assert p['baseline']['certified_manifest_entries'] == 437
+          d=p['deliverable']
+          assert d['must_bundle_source'] is True
+          assert d['must_bundle_python_runtime'] is True
+          assert d['must_not_require_homebrew_at_runtime'] is True
+          assert d['must_not_require_node_at_runtime'] is True
+          assert d['must_not_require_manual_terminal_for_normal_launch'] is True
+          assert 'integrated frontend / home' in p['required_surfaces']
+          print('FULL MAC definition: PASS')
+          PY
+
+      - name: Fresh checkout must not claim installable app
+        run: |
+          set +e
+          python scripts/evaluate_full_mac_delivery.py --output /tmp/full-mac-readiness.json
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/full-mac-readiness.json'))
+          assert p['phase'] == 'SOURCE_RECOVERY_REQUIRED'
+          assert p['control_kit_is_product'] is False
+          assert p['installable_full_app_candidate'] is False
+          assert p['ready_for_daily_use_on_target_mac'] is False
+          print('Fresh checkout FULL MAC fail-closed readiness: PASS')
+          PY
