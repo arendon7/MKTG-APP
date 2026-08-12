@@ -23,15 +23,28 @@ The first Mac execution must use the unmodified certified Wave 21 source. If a r
 
 Never overwrite or redefine the certified Wave 21 baseline.
 
-## One-command entry
+## Preferred entry: self-verifying Mac Control Kit
 
-Put the exact ZIP in Downloads, Desktop, Documents, or next to the repository and run:
+The `Wave 22 Controls` workflow publishes `WAVE22_TARGET_MAC_CONTROL_KIT`. Its internal ZIP contains `CONTROL_KIT_MANIFEST.json`, which binds the exact control-plane revision and every shipped file to SHA-256, size and executable-bit expectations.
+
+When the extracted kit has that manifest, `RUN_WAVE22_MAC_UAT.command` verifies the kit before importing or launching App13. A modified or incomplete kit is blocked.
+
+Put the exact Wave 21 ZIP in Downloads, Desktop, Documents, or next to the kit and run:
 
 ```bash
 bash RUN_WAVE22_MAC_UAT.command
 ```
 
-The launcher verifies the archive, imports it strictly, creates/preserves local UAT status, displays the current gate, installs the isolated UAT kit, and opens App13.
+The launcher then:
+
+1. verifies the extracted control kit when a manifest is present;
+2. verifies Wave 21 SHA-256 and ZIP CRC;
+3. rejects mixed or unproven source state;
+4. imports Wave 21 under `app/` with provenance;
+5. initializes/preserves governed local UAT state;
+6. displays the current machine-readable gate;
+7. installs the isolated UAT kit;
+8. opens App13.
 
 ## Manual import path
 
@@ -41,6 +54,57 @@ python3 scripts/import_wave21_release.py /path/to/BINARIO_MARKETING_APP13_INTEGR
 ./scripts/wave22_mac_preflight.sh /path/to/BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip
 ```
 
+## Governed local state
+
+Do not hand-edit the UAT JSON. Use:
+
+```bash
+python3 scripts/wave22_uat_operator.py init
+python3 scripts/wave22_uat_operator.py show
+```
+
+The state file is local and intentionally excluded from Git:
+
+```text
+uat-evidence/WAVE22_UAT_STATUS.json
+```
+
+Every recorded scenario requires actor, evidence and operator note. A `FAIL` or `BLOCKED` also requires an existing OPEN defect for the same scenario.
+
+Example PASS:
+
+```bash
+python3 scripts/wave22_uat_operator.py record CORE-007 PASS \
+  --actor "OPERADOR" \
+  --evidence "evidence/CORE-007.json" \
+  --note "Primary operator workflow completed without developer assistance"
+```
+
+Example defect path:
+
+```bash
+python3 scripts/wave22_uat_operator.py defect-open W22-001 P1 CORE-007 \
+  --actor "OPERADOR" \
+  --summary "Reproducible failure summary"
+
+python3 scripts/wave22_uat_operator.py record CORE-007 FAIL \
+  --actor "OPERADOR" \
+  --evidence "evidence/CORE-007-fail.json" \
+  --note "Observed behavior and reproduction context" \
+  --defect-id W22-001
+```
+
+After a fix and fresh retest:
+
+```bash
+python3 scripts/wave22_uat_operator.py defect-verify W22-001 \
+  --actor "REVISOR" \
+  --resolution "Fix verified" \
+  --evidence "evidence/W22-001-retest.json"
+```
+
+Any scenario re-record or defect lifecycle change invalidates affected/downstream signatures so stale acceptance cannot survive new evidence.
+
 ## CORE_UAT
 
 Execute with a real operator and fresh evidence:
@@ -49,18 +113,33 @@ Execute with a real operator and fresh evidence:
 - `CORE-008` — understand state, exercise a safe error, recover, and locate the next action.
 - `CORE-009` — verify approvals, budget limits, kill switches, and non-bypassable Paid Media / Automation / Autopilot controls without live side effects.
 
-The synthetic CRM task may be used where the certified guide allows it. Record `PASS`, `FAIL`, or `BLOCKED` in the integrated UAT form with a concrete operator note and evidence reference.
+The synthetic CRM task may be used where the certified guide allows it.
 
 CORE gate requires:
 
 - CORE-007/008/009 `PASS` with fresh evidence;
 - zero open P0/P1 defects;
-- any P2/P3 risk acceptance must have independent actor + rationale;
-- independent human `CORE_UAT` signature.
+- independent human signer distinct from scenario operator(s);
+- any open P2/P3 requires explicit risk-acceptance rationale;
+- a structured `CORE_UAT` signature whose evidence references still match the current scenario records.
+
+Sign only after review:
+
+```bash
+python3 scripts/wave22_uat_operator.py sign core --actor "SEGUNDO_ACTOR"
+```
+
+With residual P2/P3:
+
+```bash
+python3 scripts/wave22_uat_operator.py sign core \
+  --actor "SEGUNDO_ACTOR" \
+  --rationale "Documented reason this residual risk does not block the gate"
+```
 
 ## STANDALONE_MAC_UAT
 
-After CORE_UAT passes:
+Only after CORE_UAT is signed:
 
 - `MAC-001` — native install, startup, and restart on the target Mac.
 - `MAC-002` — Security.framework helper, Keychain/vault write, credential rotation/revocation, and guided recovery; no secret may enter evidence.
@@ -71,16 +150,14 @@ Target Mac gate requires:
 - MAC-001/002/003 `PASS` with fresh evidence;
 - release/evidence tied to the exact candidate SHA;
 - zero open P0/P1 defects;
-- independent `STANDALONE_MAC_UAT` signature;
+- independent structured `STANDALONE_MAC_UAT` signature;
 - evidence bundle exported and integrity checked.
 
-## Machine-readable gate
-
-The local state file is intentionally excluded from Git:
-
-```text
-uat-evidence/WAVE22_UAT_STATUS.json
+```bash
+python3 scripts/wave22_uat_operator.py sign mac --actor "SEGUNDO_ACTOR_MAC"
 ```
+
+## Machine-readable gate
 
 Evaluate progress at any point:
 
@@ -95,7 +172,9 @@ Expected progression:
 3. `STANDALONE_MAC_UAT`
 4. `BINARIO_R22_UAT`
 
-`CONTROL_POLICY_REPAIR` means the evaluator found drift or a Wave 22 policy violation.
+The evaluator does not trust a plain `SIGNED` flag. It validates baseline binding, scenario completeness, evidence metadata, defect-record/counter consistency, independent signer metadata, current signature-to-evidence binding, P2/P3 rationale, R22 state and provider state.
+
+`CONTROL_POLICY_REPAIR` means drift or a Wave 22 policy violation was found.
 
 ## Evidence closeout
 
@@ -112,7 +191,7 @@ python3 scripts/package_wave22_evidence.py /path/to/evidence \
   --status-json uat-evidence/WAVE22_UAT_STATUS.json
 ```
 
-The bundle contains the evidence, per-file hashes, guard output, certified baseline, scenario catalog, UAT status, CRC-checked ZIP, and an external SHA-256 sidecar. Packaging does not create or imply a human UAT signature.
+The bundle contains evidence, per-file hashes, guard output, certified baseline, scenario catalog, UAT status, CRC-checked ZIP, and an external SHA-256 sidecar. Packaging does not create or imply a human UAT signature.
 
 ## Out of scope for Wave 22
 
