@@ -102,3 +102,36 @@ jobs:
           assert p['source_import'] == 'MISSING'
           print('Fresh checkout gate: PASS')
           PY
+
+      - name: Build Target Mac control kit
+        run: |
+          KIT="dist/WAVE22_TARGET_MAC_CONTROL_KIT"
+          mkdir -p "$KIT/scripts" "$KIT/docs"
+          cp README.md RUN_WAVE22_MAC_UAT.command "$KIT/"
+          cp scripts/import_wave21_release.py "$KIT/scripts/"
+          cp scripts/wave22_mac_preflight.sh "$KIT/scripts/"
+          cp scripts/wave22_uat_operator.py "$KIT/scripts/"
+          cp scripts/evaluate_wave22_gate.py "$KIT/scripts/"
+          cp scripts/wave22_evidence_guard.py "$KIT/scripts/"
+          cp scripts/package_wave22_evidence.py "$KIT/scripts/"
+          cp docs/BASELINE_WAVE21.json "$KIT/docs/"
+          cp docs/WAVE22_TARGET_MAC_UAT.md "$KIT/docs/"
+          cp docs/WAVE22_UAT_SCENARIOS.json "$KIT/docs/"
+          cp docs/WAVE22_UAT_STATUS_TEMPLATE.json "$KIT/docs/"
+          chmod +x "$KIT/RUN_WAVE22_MAC_UAT.command" "$KIT/scripts/"*.sh "$KIT/scripts/"*.py
+          (
+            cd dist
+            zip -qr WAVE22_TARGET_MAC_CONTROL_KIT.zip WAVE22_TARGET_MAC_CONTROL_KIT
+            sha256sum WAVE22_TARGET_MAC_CONTROL_KIT.zip > WAVE22_TARGET_MAC_CONTROL_KIT.zip.sha256
+          )
+          cat dist/WAVE22_TARGET_MAC_CONTROL_KIT.zip.sha256
+
+      - name: Upload Target Mac control kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: WAVE22_TARGET_MAC_CONTROL_KIT
+          path: |
+            dist/WAVE22_TARGET_MAC_CONTROL_KIT.zip
+            dist/WAVE22_TARGET_MAC_CONTROL_KIT.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
