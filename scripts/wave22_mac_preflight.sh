@@ -1,8 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
 EXPECTED_SHA="d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861"
 ARCHIVE="${1:-}"
+CONTROL_RUNTIME="${WAVE22_CONTROL_RUNTIME:-$HOME/Library/Application Support/Binario IA/Wave22/runtime}"
+PYTHON_BIN="${WAVE22_PYTHON_BIN:-}"
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 pass() { printf 'PASS: %s\n' "$1"; }
@@ -10,28 +15,23 @@ pass() { printf 'PASS: %s\n' "$1"; }
 [[ "$(uname -s)" == "Darwin" ]] || fail "Wave 22 Target Mac UAT must run on macOS"
 pass "macOS $(sw_vers -productVersion) / $(uname -m)"
 
-command -v python3 >/dev/null 2>&1 || fail "python3 is required"
-pass "$(python3 --version 2>&1)"
+if [[ -z "$PYTHON_BIN" ]]; then
+  "$ROOT/scripts/bootstrap_full_mac_python.sh" --target "$CONTROL_RUNTIME" || fail "pinned embedded CPython bootstrap failed"
+  PYTHON_BIN="$CONTROL_RUNTIME/bin/python3"
+fi
+[[ -x "$PYTHON_BIN" ]] || fail "embedded CPython is unavailable: $PYTHON_BIN"
+pass "$("$PYTHON_BIN" -I -B --version 2>&1)"
 
-FREE_KB="$(df -Pk . | awk 'NR==2 {print $4}')"
+FREE_KB="$(df -Pk "$ROOT" | awk 'NR==2 {print $4}')"
 [[ "${FREE_KB:-0}" -ge 1048576 ]] || fail "less than 1 GiB free in working filesystem"
 pass "disk headroom >= 1 GiB"
 
 if [[ -n "$ARCHIVE" ]]; then
   [[ -f "$ARCHIVE" ]] || fail "release ZIP not found: $ARCHIVE"
-  ACTUAL_SHA="$(python3 - "$ARCHIVE" <<'PY'
-import hashlib, sys
-p=sys.argv[1]
-h=hashlib.sha256()
-with open(p,'rb') as f:
-    for b in iter(lambda:f.read(1024*1024), b''):
-        h.update(b)
-print(h.hexdigest())
-PY
-)"
+  ACTUAL_SHA="$(/usr/bin/shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
   [[ "$ACTUAL_SHA" == "$EXPECTED_SHA" ]] || fail "Wave 21 SHA mismatch: $ACTUAL_SHA"
   pass "exact Wave 21 SHA-256"
-  python3 scripts/import_wave21_release.py "$ARCHIVE" --dry-run
+  "$PYTHON_BIN" -I -B scripts/import_wave21_release.py "$ARCHIVE" --dry-run
 fi
 
 if [[ -d app ]]; then
