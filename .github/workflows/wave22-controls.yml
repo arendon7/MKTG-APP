@@ -28,6 +28,7 @@ jobs:
           python -m py_compile scripts/package_wave22_evidence.py
           python -m py_compile scripts/evaluate_wave22_gate.py
           python -m py_compile scripts/wave22_uat_operator.py
+          python -m py_compile scripts/verify_wave22_control_kit.py
 
       - name: Control tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
@@ -37,12 +38,13 @@ jobs:
           bash -n scripts/wave22_mac_preflight.sh
           bash -n RUN_WAVE22_MAC_UAT.command
 
-      - name: Canonical UAT entrypoints
+      - name: Canonical UAT entrypoints and integrity hook
         run: |
           grep -q "install_app13_uat_kit_macos.sh" scripts/wave22_mac_preflight.sh
           grep -q "run_app13_uat_kit.sh" scripts/wave22_mac_preflight.sh
           grep -q "install_app13_uat_kit_macos.sh" RUN_WAVE22_MAC_UAT.command
           grep -q "run_app13_uat_kit.sh" RUN_WAVE22_MAC_UAT.command
+          grep -q "verify_wave22_control_kit.py" RUN_WAVE22_MAC_UAT.command
 
       - name: Baseline and UAT contract sanity
         run: |
@@ -103,7 +105,7 @@ jobs:
           print('Fresh checkout gate: PASS')
           PY
 
-      - name: Build Target Mac control kit
+      - name: Build and verify Target Mac control kit
         run: |
           KIT="dist/WAVE22_TARGET_MAC_CONTROL_KIT"
           mkdir -p "$KIT/scripts" "$KIT/docs"
@@ -114,11 +116,14 @@ jobs:
           cp scripts/evaluate_wave22_gate.py "$KIT/scripts/"
           cp scripts/wave22_evidence_guard.py "$KIT/scripts/"
           cp scripts/package_wave22_evidence.py "$KIT/scripts/"
+          cp scripts/verify_wave22_control_kit.py "$KIT/scripts/"
           cp docs/BASELINE_WAVE21.json "$KIT/docs/"
           cp docs/WAVE22_TARGET_MAC_UAT.md "$KIT/docs/"
           cp docs/WAVE22_UAT_SCENARIOS.json "$KIT/docs/"
           cp docs/WAVE22_UAT_STATUS_TEMPLATE.json "$KIT/docs/"
           chmod +x "$KIT/RUN_WAVE22_MAC_UAT.command" "$KIT/scripts/"*.sh "$KIT/scripts/"*.py
+          python scripts/verify_wave22_control_kit.py --build --root "$KIT" --manifest "$KIT/CONTROL_KIT_MANIFEST.json" --revision "$GITHUB_SHA"
+          python scripts/verify_wave22_control_kit.py --root "$KIT" --manifest "$KIT/CONTROL_KIT_MANIFEST.json"
           (
             cd dist
             zip -qr WAVE22_TARGET_MAC_CONTROL_KIT.zip WAVE22_TARGET_MAC_CONTROL_KIT
