@@ -102,6 +102,12 @@ def main() -> int:
     if not archive.is_file():
         print(f"ERROR: archive not found: {archive}", file=sys.stderr)
         return 2
+    if archive.name != EXPECTED_NAME:
+        print(
+            f"ERROR: unexpected Wave 21 archive name: {archive.name}; expected {EXPECTED_NAME}",
+            file=sys.stderr,
+        )
+        return 3
 
     actual = sha256(archive)
     print(f"archive: {archive.name}")

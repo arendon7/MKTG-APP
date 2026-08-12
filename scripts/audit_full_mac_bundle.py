@@ -6,15 +6,26 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import plistlib
 import stat
-import sys
 from pathlib import Path
 
 EXPECTED_BUNDLE_ID = "com.sistemabinario.marketingia"
 EXPECTED_VERSION = "0.5.5a1"
 EXPECTED_SOURCE_SHA256 = "d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861"
+EXPECTED_PYTHON_VERSION = "3.12.13"
+EXPECTED_PYTHON_RELEASE = "20260807"
+EXPECTED_RUNTIME_SCHEMA = "binario.marketing.full-mac-python-runtime.v1"
+EXPECTED_RUNTIME_BY_ARCH = {
+    "arm64": {
+        "source_asset": "cpython-3.12.13+20260807-aarch64-apple-darwin-install_only_stripped.tar.gz",
+        "source_sha256": "25baa97c65b3f0aa90e21131b4f9e80aef8899e8144006db8a9d2c1ab9e807e3",
+    },
+    "x86_64": {
+        "source_asset": "cpython-3.12.13+20260807-x86_64-apple-darwin-install_only_stripped.tar.gz",
+        "source_sha256": "127053f1736f721e391ddb46f07585d05756e15bb8d757d3bbc0519738998ba1",
+    },
+}
 
 
 def sha256(path: Path) -> str:
@@ -41,6 +52,7 @@ def audit(bundle: Path, source_audit: Path | None = None) -> dict:
     app13 = resources / "App13"
     runtime = resources / "runtime"
     python_bin = runtime / "bin" / "python3"
+    runtime_manifest = runtime / "FULL_MAC_PYTHON_RUNTIME.json"
 
     for required in (contents, resources, macos, app13, runtime):
         if not required.exists():
@@ -67,11 +79,52 @@ def audit(bundle: Path, source_audit: Path | None = None) -> dict:
         problems.append("missing native app launcher")
     elif not (launcher.stat().st_mode & stat.S_IXUSR):
         problems.append("native app launcher is not executable")
+    else:
+        launcher_text = launcher.read_text(encoding="utf-8", errors="replace")
+        required_launcher_contract = (
+            'PYTHON="$RUNTIME/bin/python3"',
+            'export PATH="$RUNTIME/bin:/usr/bin:/bin"',
+            "unset PYTHONHOME PYTHONPATH",
+            "export PYTHONNOUSERSITE=1",
+            "export PYTHONDONTWRITEBYTECODE=1",
+        )
+        for token in required_launcher_contract:
+            if token not in launcher_text:
+                problems.append(f"launcher isolation contract missing: {token}")
+        for forbidden in ("command -v python3", "/usr/bin/python3", "/usr/bin/env python3"):
+            if forbidden in launcher_text:
+                problems.append(f"launcher may fall back to host Python: {forbidden}")
 
     if not python_bin.is_file():
         problems.append("embedded CPython bin/python3 missing")
     elif not (python_bin.stat().st_mode & stat.S_IXUSR):
         problems.append("embedded CPython bin/python3 is not executable")
+
+    if not runtime_manifest.is_file():
+        problems.append("embedded CPython runtime manifest missing")
+    else:
+        try:
+            manifest = json.loads(runtime_manifest.read_text(encoding="utf-8"))
+            details["runtime"] = manifest
+            if manifest.get("schema") != EXPECTED_RUNTIME_SCHEMA:
+                problems.append("embedded CPython runtime schema mismatch")
+            if manifest.get("python_version") != EXPECTED_PYTHON_VERSION:
+                problems.append("embedded CPython version mismatch")
+            if manifest.get("release") != EXPECTED_PYTHON_RELEASE:
+                problems.append("embedded CPython release mismatch")
+            arch = manifest.get("architecture")
+            expected_runtime = EXPECTED_RUNTIME_BY_ARCH.get(arch)
+            if expected_runtime is None:
+                problems.append(f"unsupported embedded CPython architecture: {arch}")
+            else:
+                if manifest.get("source_asset") != expected_runtime["source_asset"]:
+                    problems.append("embedded CPython source asset mismatch")
+                if manifest.get("source_sha256") != expected_runtime["source_sha256"]:
+                    problems.append("embedded CPython source SHA256 mismatch")
+            if manifest.get("upstream") != "astral-sh/python-build-standalone":
+                problems.append("embedded CPython upstream mismatch")
+        except Exception as exc:
+            problems.append(f"invalid embedded CPython runtime manifest: {exc}")
 
     runners = list(app13.rglob("run_app13_uat_kit.sh")) if app13.is_dir() else []
     installers = []

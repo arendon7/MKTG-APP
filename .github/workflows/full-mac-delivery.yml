@@ -26,9 +26,12 @@ jobs:
           python -m py_compile scripts/audit_full_app_payload.py
           python -m py_compile scripts/audit_full_mac_bundle.py
           python -m py_compile scripts/evaluate_full_mac_delivery.py
+          python -m py_compile scripts/import_wave21_release.py
 
       - name: Builder shell syntax
-        run: bash -n scripts/build_full_mac_app.sh
+        run: |
+          bash -n scripts/bootstrap_full_mac_python.sh
+          bash -n scripts/build_full_mac_app.sh
 
       - name: Full Mac contract tests
         run: python -m unittest tests.test_full_mac_app_contract -v
@@ -66,4 +69,49 @@ jobs:
           assert p['installable_full_app_candidate'] is False
           assert p['ready_for_daily_use_on_target_mac'] is False
           print('Fresh checkout FULL MAC fail-closed readiness: PASS')
+          PY
+
+  embedded-python-runtime:
+    name: Embedded CPython (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bootstrap pinned embedded CPython
+        run: |
+          scripts/bootstrap_full_mac_python.sh \
+            --target "$RUNNER_TEMP/binario-python" \
+            --arch "${{ matrix.arch }}"
+
+      - name: Verify isolated embedded interpreter
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          "$RUNNER_TEMP/binario-python/bin/python3" -I -B - <<'PY'
+          import json
+          import os
+          import platform
+          import sys
+
+          root = os.path.join(os.environ['RUNNER_TEMP'], 'binario-python')
+          with open(os.path.join(root, 'FULL_MAC_PYTHON_RUNTIME.json'), encoding='utf-8') as handle:
+              manifest = json.load(handle)
+          assert sys.version_info[:3] == (3, 12, 13), sys.version_info
+          machine = platform.machine()
+          normalized = 'arm64' if machine in {'arm64', 'aarch64'} else 'x86_64' if machine in {'x86_64', 'amd64'} else machine
+          expected = os.environ['EXPECTED_ARCH']
+          assert normalized == expected, (normalized, expected)
+          assert manifest['architecture'] == expected
+          assert manifest['python_version'] == '3.12.13'
+          assert manifest['release'] == '20260807'
+          print(f'Embedded CPython native runtime: PASS ({expected})')
           PY
