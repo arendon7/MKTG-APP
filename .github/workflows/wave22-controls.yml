@@ -1,0 +1,186 @@
+name: Wave 22 Controls
+
+on:
+  pull_request:
+  push:
+    branches:
+      - wave22/target-mac-uat
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-controls:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile control scripts
+        run: |
+          python -m py_compile scripts/import_wave21_release.py
+          python -m py_compile scripts/wave22_evidence_guard.py
+          python -m py_compile scripts/package_wave22_evidence.py
+          python -m py_compile scripts/evaluate_wave22_gate.py
+          python -m py_compile scripts/wave22_uat_operator.py
+          python -m py_compile scripts/verify_wave22_control_kit.py
+          python -m py_compile scripts/audit_full_app_payload.py
+          python -m py_compile scripts/audit_full_mac_bundle.py
+
+      - name: Control tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Shell syntax
+        run: |
+          bash -n scripts/wave22_mac_preflight.sh
+          bash -n RUN_WAVE22_MAC_UAT.command
+          bash -n scripts/bootstrap_full_mac_python.sh
+          bash -n scripts/build_full_mac_app.sh
+
+      - name: Canonical UAT entrypoints and integrity hook
+        run: |
+          grep -q "install_app13_uat_kit_macos.sh" scripts/wave22_mac_preflight.sh
+          grep -q "run_app13_uat_kit.sh" scripts/wave22_mac_preflight.sh
+          grep -q "install_app13_uat_kit_macos.sh" RUN_WAVE22_MAC_UAT.command
+          grep -q "run_app13_uat_kit.sh" RUN_WAVE22_MAC_UAT.command
+          grep -q "verify_wave22_control_kit.py" RUN_WAVE22_MAC_UAT.command
+          grep -q "audit_full_app_payload.py" scripts/build_full_mac_app.sh
+          grep -q "audit_full_mac_bundle.py" scripts/build_full_mac_app.sh
+          grep -q "bootstrap_full_mac_python.sh" scripts/build_full_mac_app.sh
+          grep -q "full_mac_python_runtime.env" scripts/bootstrap_full_mac_python.sh
+          if grep -q "BINARIO_EMBEDDED_PYTHON" scripts/build_full_mac_app.sh; then
+            echo "host-provided embedded Python path is forbidden in canonical FULL MAC builder" >&2
+            exit 1
+          fi
+
+      - name: Baseline and UAT contract sanity
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected_sha = 'd241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861'
+          baseline = json.loads(Path('docs/BASELINE_WAVE21.json').read_text())
+          scenarios = json.loads(Path('docs/WAVE22_UAT_SCENARIOS.json').read_text())
+          status = json.loads(Path('docs/WAVE22_UAT_STATUS_TEMPLATE.json').read_text())
+          full_mac = json.loads(Path('docs/FULL_MAC_APP_TARGET.json').read_text())
+
+          assert baseline['version'] == '0.5.5a1'
+          assert baseline['sha256'] == expected_sha
+          assert baseline['external_gates']['r22'] == 'PHYSICALLY_UNBOUND'
+          assert baseline['wave22_policy']['feature_freeze'] is True
+          assert scenarios['baseline_version'] == baseline['version']
+          assert scenarios['baseline_sha256'] == expected_sha
+          assert status['baseline']['version'] == baseline['version']
+          assert status['baseline']['sha256'] == expected_sha
+          assert status['external_gates']['r22'] == 'PHYSICALLY_UNBOUND'
+          assert status['external_gates']['live_providers'] == 'BLOCKED'
+
+          ids = [s['id'] for group in scenarios['profiles'].values() for s in group]
+          status_ids = [s['id'] for s in status['scenarios']]
+          assert ids == ['CORE-007', 'CORE-008', 'CORE-009', 'MAC-001', 'MAC-002', 'MAC-003']
+          assert status_ids == ids
+          assert all(s['status'] == 'NOT_RUN' for s in status['scenarios'])
+          assert status['defect_records'] == []
+          assert status['events'] == []
+          assert status['signoff']['core_uat'] == 'NOT_SIGNED'
+          assert status['signoff']['standalone_mac_uat'] == 'NOT_SIGNED'
+
+          assert full_mac['baseline']['version'] == baseline['version']
+          assert full_mac['baseline']['sha256'] == expected_sha
+          assert full_mac['baseline']['certified_modules'] == 115
+          assert full_mac['baseline']['certified_manifest_entries'] == 437
+          assert full_mac['deliverable']['must_bundle_source'] is True
+          assert full_mac['deliverable']['must_bundle_python_runtime'] is True
+          assert full_mac['deliverable']['must_not_require_homebrew_at_runtime'] is True
+          assert full_mac['deliverable']['must_not_require_node_at_runtime'] is True
+          assert full_mac['readiness_gates']['open_p0_p1'] == 0
+          print('Wave 21 / Wave 22 / FULL MAC contract: PASS')
+          PY
+
+      - name: UAT state operator smoke
+        run: |
+          python scripts/wave22_uat_operator.py --status /tmp/WAVE22_UAT_STATUS.json init > /tmp/init.json
+          python scripts/wave22_uat_operator.py --status /tmp/WAVE22_UAT_STATUS.json show > /tmp/show.json
+          python - <<'PY'
+          import json
+          p = json.load(open('/tmp/show.json'))
+          assert p['baseline']['version'] == '0.5.5a1'
+          assert len(p['events']) == 1
+          assert p['events'][0]['kind'] == 'STATUS_INITIALIZED'
+          print('UAT state operator smoke: PASS')
+          PY
+
+      - name: Fresh checkout gate evaluation
+        run: |
+          python scripts/evaluate_wave22_gate.py > gate.json
+          python - <<'PY'
+          import json
+          p = json.load(open('gate.json'))
+          assert p['overall'] == 'PENDING'
+          assert p['next_gate'] == 'IMPORT_EXACT_WAVE21'
+          assert p['source_import'] == 'MISSING'
+          print('Fresh checkout gate: PASS')
+          PY
+
+      - name: Full Mac source gate must fail closed without payload
+        run: |
+          set +e
+          python scripts/audit_full_app_payload.py --output full-mac-source-gate.json
+          rc=$?
+          set -e
+          test "$rc" -eq 3
+          python - <<'PY'
+          import json
+          p=json.load(open('full-mac-source-gate.json'))
+          assert p['status'] == 'BLOCKED'
+          assert any('payload root missing' in item for item in p['problems'])
+          print('FULL MAC missing-source fail-closed gate: PASS')
+          PY
+
+      - name: Build and verify Target Mac control kit
+        run: |
+          KIT="dist/WAVE22_TARGET_MAC_CONTROL_KIT"
+          mkdir -p "$KIT/scripts" "$KIT/docs"
+          cp README.md RUN_WAVE22_MAC_UAT.command "$KIT/"
+          cp scripts/import_wave21_release.py "$KIT/scripts/"
+          cp scripts/wave22_mac_preflight.sh "$KIT/scripts/"
+          cp scripts/wave22_uat_operator.py "$KIT/scripts/"
+          cp scripts/evaluate_wave22_gate.py "$KIT/scripts/"
+          cp scripts/wave22_evidence_guard.py "$KIT/scripts/"
+          cp scripts/package_wave22_evidence.py "$KIT/scripts/"
+          cp scripts/verify_wave22_control_kit.py "$KIT/scripts/"
+          cp scripts/audit_full_app_payload.py "$KIT/scripts/"
+          cp scripts/audit_full_mac_bundle.py "$KIT/scripts/"
+          cp scripts/bootstrap_full_mac_python.sh "$KIT/scripts/"
+          cp scripts/full_mac_python_runtime.env "$KIT/scripts/"
+          cp scripts/build_full_mac_app.sh "$KIT/scripts/"
+          cp docs/BASELINE_WAVE21.json "$KIT/docs/"
+          cp docs/WAVE22_TARGET_MAC_UAT.md "$KIT/docs/"
+          cp docs/WAVE22_UAT_SCENARIOS.json "$KIT/docs/"
+          cp docs/WAVE22_UAT_STATUS_TEMPLATE.json "$KIT/docs/"
+          cp docs/FULL_MAC_APP_TARGET.json "$KIT/docs/"
+          chmod +x "$KIT/RUN_WAVE22_MAC_UAT.command" "$KIT/scripts/"*.sh "$KIT/scripts/"*.py
+          python scripts/verify_wave22_control_kit.py --build --root "$KIT" --manifest "$KIT/CONTROL_KIT_MANIFEST.json" --revision "$GITHUB_SHA"
+          python scripts/verify_wave22_control_kit.py --root "$KIT" --manifest "$KIT/CONTROL_KIT_MANIFEST.json"
+          (
+            cd dist
+            zip -qr WAVE22_TARGET_MAC_CONTROL_KIT.zip WAVE22_TARGET_MAC_CONTROL_KIT
+            sha256sum WAVE22_TARGET_MAC_CONTROL_KIT.zip > WAVE22_TARGET_MAC_CONTROL_KIT.zip.sha256
+          )
+          cat dist/WAVE22_TARGET_MAC_CONTROL_KIT.zip.sha256
+
+      - name: Upload Target Mac control kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: WAVE22_TARGET_MAC_CONTROL_KIT
+          path: |
+            dist/WAVE22_TARGET_MAC_CONTROL_KIT.zip
+            dist/WAVE22_TARGET_MAC_CONTROL_KIT.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
