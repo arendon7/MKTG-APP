@@ -71,6 +71,8 @@ def extract_strict(archive: Path, target: Path) -> dict:
                     os.chmod(dest, mode)
 
             if target.exists():
+                if not target.is_dir():
+                    raise ValueError(f"target exists and is not a directory: {target}")
                 if any(target.iterdir()):
                     raise ValueError(f"target is not empty: {target}")
                 target.rmdir()
