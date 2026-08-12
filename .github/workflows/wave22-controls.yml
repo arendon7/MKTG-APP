@@ -26,6 +26,7 @@ jobs:
           python -m py_compile scripts/import_wave21_release.py
           python -m py_compile scripts/wave22_evidence_guard.py
           python -m py_compile scripts/package_wave22_evidence.py
+          python -m py_compile scripts/evaluate_wave22_gate.py
 
       - name: Control tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
@@ -72,4 +73,16 @@ jobs:
           assert status['signoff']['core_uat'] == 'NOT_SIGNED'
           assert status['signoff']['standalone_mac_uat'] == 'NOT_SIGNED'
           print('Wave 21/Wave 22 control contract: PASS')
+          PY
+
+      - name: Fresh checkout gate evaluation
+        run: |
+          python scripts/evaluate_wave22_gate.py > gate.json
+          python - <<'PY'
+          import json
+          p = json.load(open('gate.json'))
+          assert p['overall'] == 'PENDING'
+          assert p['next_gate'] == 'IMPORT_EXACT_WAVE21'
+          assert p['source_import'] == 'MISSING'
+          print('Fresh checkout gate: PASS')
           PY
