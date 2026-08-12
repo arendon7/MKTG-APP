@@ -35,12 +35,12 @@ PY
 fi
 
 if [[ -d app ]]; then
-  INSTALLER="$(find app -type f -name 'install_app13_uat_operator_macos.sh' -print -quit 2>/dev/null || true)"
-  if [[ -n "$INSTALLER" ]]; then
-    pass "UAT installer found: $INSTALLER"
-  else
-    fail "app/ exists but UAT installer was not found"
-  fi
+  INSTALLER="$(find app -type f \( -name 'install_app13_uat_kit_macos.sh' -o -name 'install_app13_uat_operator_macos.sh' \) -print -quit 2>/dev/null || true)"
+  RUNNER="$(find app -type f -name 'run_app13_uat_kit.sh' -print -quit 2>/dev/null || true)"
+  [[ -n "$INSTALLER" ]] || fail "app/ exists but the macOS UAT installer was not found"
+  [[ -n "$RUNNER" ]] || fail "app/ exists but run_app13_uat_kit.sh was not found"
+  pass "UAT installer found: $INSTALLER"
+  pass "UAT runner found: $RUNNER"
 fi
 
 printf '\nWave 22 preflight complete. R22/provider activation is intentionally out of scope.\n'
