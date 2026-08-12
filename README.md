@@ -124,9 +124,7 @@ El bundle incluye evidencia, hashes por archivo, resultado del guard, baseline W
 
 El workflow `Wave 22 Controls` publica `WAVE22_TARGET_MAC_CONTROL_KIT` con launcher, scripts y contratos necesarios para el Mac objetivo. El artifact no contiene App13: debe acompañarse del ZIP Wave 21 exacto.
 
-El ZIP generado incluye `CONTROL_KIT_MANIFEST.json` y el launcher ejecuta `verify_wave22_control_kit.py` antes de hacer cualquier importación. La revisión de control-plane queda incluida en el manifest y cada archivo del kit queda ligado a SHA-256, tamaño y bit ejecutable.
-
-Última revisión autocertificada de esta rama al escribir este README: `ce573d096358b02ee1991d53e6920b64d3a94b35`.
+El ZIP generado incluye `CONTROL_KIT_MANIFEST.json` y el launcher ejecuta `verify_wave22_control_kit.py` antes de hacer cualquier importación. La revisión exacta del control-plane vive únicamente en ese manifest; cada archivo del kit queda ligado a SHA-256, tamaño y bit ejecutable.
 
 ## Lo que sigue bloqueado
 
