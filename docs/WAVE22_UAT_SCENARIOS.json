@@ -1,0 +1,94 @@
+{
+  "baseline_version": "0.5.5a1",
+  "baseline_sha256": "d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861",
+  "profiles": {
+    "CORE_UAT": [
+      {
+        "id": "CORE-007",
+        "title": "Primary operator workflow usability",
+        "purpose": "A real operator completes Campaign → Content → CRM → Inbox without developer assistance.",
+        "mode": "MANUAL_REQUIRED",
+        "pass_requires": [
+          "real operator execution",
+          "fresh evidence reference",
+          "no developer assistance during the workflow"
+        ]
+      },
+      {
+        "id": "CORE-008",
+        "title": "Navigation, diagnostics and error recovery",
+        "purpose": "A real operator can understand state, recover from a safe error and locate the next action.",
+        "mode": "MANUAL_REQUIRED",
+        "pass_requires": [
+          "state understood by operator",
+          "safe error exercised",
+          "recovery completed",
+          "next action located without developer assistance",
+          "fresh evidence reference"
+        ]
+      },
+      {
+        "id": "CORE-009",
+        "title": "Paid Media + Automation + Autopilot controls",
+        "purpose": "Human operator verifies approvals, budget limits, kill switches and non-bypassable safety controls.",
+        "mode": "MANUAL_REQUIRED",
+        "pass_requires": [
+          "approval controls verified",
+          "budget limits verified",
+          "kill switches verified",
+          "non-bypassable behavior verified",
+          "no live-provider side effect",
+          "fresh evidence reference"
+        ]
+      }
+    ],
+    "STANDALONE_MAC_UAT": [
+      {
+        "id": "MAC-001",
+        "title": "Native install, startup and restart",
+        "purpose": "Install the exact RC on the target Mac and verify clean startup/restart.",
+        "mode": "MANUAL_REQUIRED",
+        "pass_requires": [
+          "exact release fingerprint",
+          "native install succeeds",
+          "clean startup",
+          "clean restart",
+          "fresh evidence reference"
+        ]
+      },
+      {
+        "id": "MAC-002",
+        "title": "Security.framework Keychain + credential recovery",
+        "purpose": "Verify native helper, secure vault writes, rotation/revocation and guided recovery on target Mac.",
+        "mode": "MANUAL_REQUIRED",
+        "pass_requires": [
+          "Security.framework helper verified",
+          "secure vault write verified",
+          "rotation/revocation verified",
+          "guided recovery verified",
+          "no secret included in evidence",
+          "fresh evidence reference"
+        ]
+      },
+      {
+        "id": "MAC-003",
+        "title": "Upgrade, crash recovery and rollback",
+        "purpose": "Verify guarded upgrade, launchd fallback, crash-safe recovery and rollback to previous verified release.",
+        "mode": "MANUAL_REQUIRED",
+        "pass_requires": [
+          "guarded upgrade verified",
+          "launchd fallback verified",
+          "crash-safe recovery verified",
+          "rollback to previously verified release verified",
+          "fresh evidence reference"
+        ]
+      }
+    ]
+  },
+  "global_gate": {
+    "p0_p1_open": 0,
+    "independent_second_actor_signoff": true,
+    "r22_expected_state": "PHYSICALLY_UNBOUND",
+    "live_provider_expected_state": "BLOCKED"
+  }
+}
