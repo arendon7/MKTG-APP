@@ -15,6 +15,13 @@ fail() { printf '\nERROR: %s\n' "$1" >&2; printf '\nNo se modificó R22 ni se ac
 [[ "$(uname -s)" == "Darwin" ]] || fail "este launcher debe ejecutarse en macOS"
 command -v python3 >/dev/null 2>&1 || fail "python3 no está disponible"
 
+if [[ -f "$ROOT/CONTROL_KIT_MANIFEST.json" ]]; then
+  say_step "Verificando integridad del Mac Control Kit"
+  python3 scripts/verify_wave22_control_kit.py --root "$ROOT" --manifest "$ROOT/CONTROL_KIT_MANIFEST.json" || fail "el Control Kit fue modificado o está incompleto"
+else
+  say_step "Modo checkout de repositorio: no hay manifest de artifact; CI sigue siendo la autoridad del control-plane"
+fi
+
 ARCHIVE="${1:-}"
 if [[ -z "$ARCHIVE" ]]; then
   say_step "Buscando la release Wave 21 certificada"
@@ -80,20 +87,20 @@ Dentro de App13:
 3. Ejecuta realmente CORE-007, CORE-008 y CORE-009.
 4. Guarda evidencia concreta de cada ejecución.
 
-Registro gobernado desde esta carpeta:
+Registrar PASS:
   python3 scripts/wave22_uat_operator.py record CORE-007 PASS --actor "OPERADOR" --evidence "ruta/evidencia" --note "qué ocurrió"
 
 Si falla:
   python3 scripts/wave22_uat_operator.py defect-open W22-001 P1 CORE-007 --actor "OPERADOR" --summary "defecto reproducible"
   python3 scripts/wave22_uat_operator.py record CORE-007 FAIL --actor "OPERADOR" --evidence "ruta/evidencia" --note "qué falló" --defect-id W22-001
 
-Firma independiente (otro actor):
+Firma independiente:
   python3 scripts/wave22_uat_operator.py sign core --actor "REVISOR"
 
 Consultar gate:
   python3 scripts/evaluate_wave22_gate.py
 
-Empaquetar evidencia saneada:
+Empaquetar evidencia:
   python3 scripts/package_wave22_evidence.py <carpeta-evidencia> --status-json uat-evidence/WAVE22_UAT_STATUS.json
 
 R22 permanece UNBOUND y providers live permanecen bloqueados.
