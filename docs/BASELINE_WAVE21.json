@@ -1,0 +1,42 @@
+{
+  "product": "Binario Marketing & Growth IA — App13",
+  "wave": 21,
+  "version": "0.5.5a1",
+  "release_file": "BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip",
+  "sha256": "d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861",
+  "integration_mode": "APP13_INTERNAL_BOUND_R22_UNBOUND",
+  "certification": {
+    "tests_passed": 472,
+    "tests_total": 472,
+    "modules_passed": 115,
+    "modules_total": 115,
+    "manifest_passed": 437,
+    "manifest_total": 437,
+    "engineering_acceptance": "18/18 PASS",
+    "ux_engineering_audit": "19/19 PASS",
+    "core_uat_preparation": "3/3 READY",
+    "release_health_gate_static": "PASS",
+    "release_health_gate_isolated_boot": "PASS"
+  },
+  "external_gates": {
+    "human_core_uat": "NOT_SIGNED",
+    "target_mac_uat": "NOT_SIGNED",
+    "r22": "PHYSICALLY_UNBOUND",
+    "live_provider_uat": "BLOCKED_UNTIL_GOVERNED_REAL_ACCOUNT",
+    "production_signoff": "BLOCKED_UNTIL_HUMAN_UAT"
+  },
+  "wave22_policy": {
+    "feature_freeze": true,
+    "allowed_changes": [
+      "reproducible UAT defects",
+      "surgical UX corrections proven necessary by UAT",
+      "tests and diagnostics required to prevent regression"
+    ],
+    "forbidden_without_new_gate": [
+      "large new features",
+      "R22 physical binding",
+      "live provider activation",
+      "fabricated human UAT evidence or sign-off"
+    ]
+  }
+}
