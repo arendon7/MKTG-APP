@@ -22,7 +22,7 @@ Coloca el ZIP exacto en `Descargas`, `Escritorio`, `Documentos` o junto al kit d
 bash RUN_WAVE22_MAC_UAT.command
 ```
 
-El launcher localiza y valida el ZIP, rechaza mezclas de fuente, importa Wave 21 con provenance, inicializa el estado UAT gobernado, muestra el gate actual, instala el kit aislado y abre App13.
+El launcher verifica primero la integridad del Mac Control Kit cuando existe `CONTROL_KIT_MANIFEST.json`; después localiza y valida el ZIP Wave 21, rechaza mezclas de fuente, importa con provenance, inicializa el estado UAT gobernado, muestra el gate actual, instala el kit aislado y abre App13.
 
 La primera UAT usa datos aislados. No debe usar el data dir productivo.
 
@@ -101,7 +101,7 @@ Progresión machine-readable:
 IMPORT_EXACT_WAVE21 → CORE_UAT → STANDALONE_MAC_UAT → BINARIO_R22_UAT
 ```
 
-El evaluador no confía en una cadena `SIGNED`: valida la firma estructurada, evidencia actual, independencia del actor, inventario de defectos y aceptación de riesgo residual.
+El evaluador no confía en una cadena `SIGNED`: valida firma estructurada, evidencia actual, independencia del actor, inventario de defectos y aceptación de riesgo residual.
 
 ## Evidencia
 
@@ -122,7 +122,11 @@ El bundle incluye evidencia, hashes por archivo, resultado del guard, baseline W
 
 ## Mac Control Kit
 
-El workflow `Wave 22 Controls` publica un artifact `WAVE22_TARGET_MAC_CONTROL_KIT` con el launcher, scripts y contratos necesarios para ejecutar Wave 22 en el Mac objetivo. El artifact **no contiene App13**: debe acompañarse del ZIP Wave 21 exacto cuyo SHA figura arriba.
+El workflow `Wave 22 Controls` publica `WAVE22_TARGET_MAC_CONTROL_KIT` con launcher, scripts y contratos necesarios para el Mac objetivo. El artifact no contiene App13: debe acompañarse del ZIP Wave 21 exacto.
+
+El ZIP generado incluye `CONTROL_KIT_MANIFEST.json` y el launcher ejecuta `verify_wave22_control_kit.py` antes de hacer cualquier importación. La revisión de control-plane queda incluida en el manifest y cada archivo del kit queda ligado a SHA-256, tamaño y bit ejecutable.
+
+Última revisión autocertificada de esta rama al escribir este README: `ce573d096358b02ee1991d53e6920b64d3a94b35`.
 
 ## Lo que sigue bloqueado
 
