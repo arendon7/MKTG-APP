@@ -5,13 +5,15 @@
     "sha256": "d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861"
   },
   "authority": "HUMAN_UAT_RECORD_PENDING",
+  "created_at_utc": null,
+  "updated_at_utc": null,
   "scenarios": [
-    {"id": "CORE-007", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null},
-    {"id": "CORE-008", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null},
-    {"id": "CORE-009", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null},
-    {"id": "MAC-001", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null},
-    {"id": "MAC-002", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null},
-    {"id": "MAC-003", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null}
+    {"id": "CORE-007", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null, "operator": null, "recorded_at_utc": null, "defect_id": null},
+    {"id": "CORE-008", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null, "operator": null, "recorded_at_utc": null, "defect_id": null},
+    {"id": "CORE-009", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null, "operator": null, "recorded_at_utc": null, "defect_id": null},
+    {"id": "MAC-001", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null, "operator": null, "recorded_at_utc": null, "defect_id": null},
+    {"id": "MAC-002", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null, "operator": null, "recorded_at_utc": null, "defect_id": null},
+    {"id": "MAC-003", "status": "NOT_RUN", "evidence_ref": null, "operator_note": null, "operator": null, "recorded_at_utc": null, "defect_id": null}
   ],
   "defects": {
     "open_p0": 0,
@@ -19,6 +21,7 @@
     "open_p2": 0,
     "open_p3": 0
   },
+  "defect_records": [],
   "external_gates": {
     "r22": "PHYSICALLY_UNBOUND",
     "live_providers": "BLOCKED"
@@ -26,6 +29,9 @@
   "signoff": {
     "core_uat": "NOT_SIGNED",
     "standalone_mac_uat": "NOT_SIGNED",
-    "independent_second_actor": null
-  }
+    "independent_second_actor": null,
+    "core_uat_signature": null,
+    "standalone_mac_uat_signature": null
+  },
+  "events": []
 }
