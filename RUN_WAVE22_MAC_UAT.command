@@ -20,10 +20,7 @@ if [[ -z "$ARCHIVE" ]]; then
   say_step "Buscando la release Wave 21 certificada"
   for base in "$ROOT" "$HOME/Downloads" "$HOME/Desktop" "$HOME/Documents"; do
     candidate="$base/$EXPECTED_NAME"
-    if [[ -f "$candidate" ]]; then
-      ARCHIVE="$candidate"
-      break
-    fi
+    if [[ -f "$candidate" ]]; then ARCHIVE="$candidate"; break; fi
   done
 fi
 
@@ -41,10 +38,8 @@ else
 import json
 from pathlib import Path
 p=Path('provenance/WAVE21_IMPORT.json')
-try:
-    print(json.loads(p.read_text()).get('sha256',''))
-except Exception:
-    print('')
+try: print(json.loads(p.read_text()).get('sha256',''))
+except Exception: print('')
 PY
 )"
     [[ "$IMPORT_SHA" == "$EXPECTED_SHA" ]] || fail "app/ ya contiene una importación cuya procedencia no coincide con Wave 21"
@@ -56,14 +51,9 @@ fi
 
 bash scripts/wave22_mac_preflight.sh "$ARCHIVE"
 
-say_step "Inicializando estado privado de Wave 22"
-mkdir -p "$STATUS_DIR"
-if [[ ! -f "$STATUS_FILE" ]]; then
-  cp docs/WAVE22_UAT_STATUS_TEMPLATE.json "$STATUS_FILE"
-  printf 'Estado creado: %s\n' "$STATUS_FILE"
-else
-  printf 'Estado existente preservado: %s\n' "$STATUS_FILE"
-fi
+say_step "Inicializando/preservando estado UAT gobernado"
+python3 scripts/wave22_uat_operator.py --status "$STATUS_FILE" init >/dev/null
+printf 'Estado: %s\n' "$STATUS_FILE"
 
 say_step "Gate actual"
 python3 scripts/evaluate_wave22_gate.py --status "$STATUS_FILE"
@@ -72,20 +62,13 @@ INSTALLER="$(find app -type f \( -name 'install_app13_uat_kit_macos.sh' -o -name
 RUNNER="$(find app -type f -name 'run_app13_uat_kit.sh' -print -quit 2>/dev/null || true)"
 [[ -n "$INSTALLER" ]] || fail "no encontré el instalador UAT dentro de la release importada"
 [[ -n "$RUNNER" ]] || fail "no encontré run_app13_uat_kit.sh dentro de la release importada"
-
 chmod +x "$INSTALLER" "$RUNNER" 2>/dev/null || true
 
 say_step "Instalando el kit UAT aislado"
-(
-  cd "$(dirname "$INSTALLER")"
-  "./$(basename "$INSTALLER")"
-)
+(cd "$(dirname "$INSTALLER")" && "./$(basename "$INSTALLER")")
 
 say_step "Abriendo App13 para CORE_UAT"
-(
-  cd "$(dirname "$RUNNER")"
-  "./$(basename "$RUNNER")"
-)
+(cd "$(dirname "$RUNNER")" && "./$(basename "$RUNNER")")
 
 cat <<'EOF'
 
@@ -94,18 +77,24 @@ Wave 22 iniciada correctamente.
 Dentro de App13:
 1. Sistema → CORE UAT Preparation: CORE-007/008/009 deben estar READY.
 2. Sistema → User Acceptance Testing → CORE_UAT.
-3. Ejecuta CORE-007, CORE-008 y CORE-009 realmente.
-4. Registra PASS/FAIL/BLOCKED + evidencia.
-5. No firmes hasta revisar defectos y cambiar al segundo actor.
+3. Ejecuta realmente CORE-007, CORE-008 y CORE-009.
+4. Guarda evidencia concreta de cada ejecución.
 
-Estado local:
-  uat-evidence/WAVE22_UAT_STATUS.json
+Registro gobernado desde esta carpeta:
+  python3 scripts/wave22_uat_operator.py record CORE-007 PASS --actor "OPERADOR" --evidence "ruta/evidencia" --note "qué ocurrió"
 
-Para consultar el siguiente gate:
+Si falla:
+  python3 scripts/wave22_uat_operator.py defect-open W22-001 P1 CORE-007 --actor "OPERADOR" --summary "defecto reproducible"
+  python3 scripts/wave22_uat_operator.py record CORE-007 FAIL --actor "OPERADOR" --evidence "ruta/evidencia" --note "qué falló" --defect-id W22-001
+
+Firma independiente (otro actor):
+  python3 scripts/wave22_uat_operator.py sign core --actor "REVISOR"
+
+Consultar gate:
   python3 scripts/evaluate_wave22_gate.py
 
-Para empaquetar evidencia ya saneada:
+Empaquetar evidencia saneada:
   python3 scripts/package_wave22_evidence.py <carpeta-evidencia> --status-json uat-evidence/WAVE22_UAT_STATUS.json
 
-R22 permanece UNBOUND y los providers live permanecen bloqueados.
+R22 permanece UNBOUND y providers live permanecen bloqueados.
 EOF
