@@ -10,13 +10,14 @@
     "tests_total": 472,
     "modules_passed": 115,
     "modules_total": 115,
-    "manifest_passed": 437,
-    "manifest_total": 437,
-    "engineering_acceptance": "18/18 PASS",
-    "ux_engineering_audit": "19/19 PASS",
-    "core_uat_preparation": "3/3 READY",
-    "release_health_gate_static": "PASS",
-    "release_health_gate_isolated_boot": "PASS"
+    "manifest_entries_verified": 437,
+    "manifest_entries_total": 437,
+    "engineering_acceptance_checks": 18,
+    "engineering_acceptance": "PASS",
+    "ux_engineering_audit_checks": 19,
+    "ux_engineering_audit": "PASS",
+    "core_uat_manual_ready": 3,
+    "core_uat_manual_total": 3
   },
   "external_gates": {
     "human_core_uat": "NOT_SIGNED",
@@ -29,14 +30,14 @@
     "feature_freeze": true,
     "allowed_changes": [
       "reproducible UAT defects",
-      "surgical UX corrections proven necessary by UAT",
-      "tests and diagnostics required to prevent regression"
+      "surgical UX corrections proven by UAT",
+      "tests and diagnostics preventing regression"
     ],
-    "forbidden_without_new_gate": [
-      "large new features",
-      "R22 physical binding",
+    "forbidden_without_gate": [
+      "large product features",
+      "physical R22 binding",
       "live provider activation",
-      "fabricated human UAT evidence or sign-off"
+      "fabricated human UAT or Production Sign-Off"
     ]
   }
 }
