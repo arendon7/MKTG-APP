@@ -29,8 +29,10 @@ El launcher:
 3. rechaza mezclas con otra fuente;
 4. importa Wave 21 bajo `app/` con provenance;
 5. valida macOS y los entrypoints canónicos del UAT kit;
-6. instala el kit aislado;
-7. abre App13 para iniciar `CORE_UAT`.
+6. crea/preserva `uat-evidence/WAVE22_UAT_STATUS.json` fuera de Git;
+7. muestra el gate actual de forma machine-readable;
+8. instala el kit aislado;
+9. abre App13 para iniciar `CORE_UAT`.
 
 La primera UAT usa datos aislados. No debe usar el data dir productivo.
 
@@ -44,18 +46,54 @@ La primera UAT usa datos aislados. No debe usar el data dir productivo.
 6. `MAC-002` — Security.framework/Keychain + credential recovery.
 7. `MAC-003` — upgrade/crash recovery/rollback.
 8. Firma independiente de `STANDALONE_MAC_UAT`.
+9. Solo entonces queda habilitado el siguiente gate: `BINARIO_R22_UAT`.
 
 Solo los defectos reproducibles encontrados en UAT justifican cambios de producto en esta wave.
+
+## Consultar estado real
+
+```bash
+python3 scripts/evaluate_wave22_gate.py
+```
+
+Estados esperados, en orden:
+
+- `IMPORT_EXACT_WAVE21`
+- `CORE_UAT`
+- `STANDALONE_MAC_UAT`
+- `BINARIO_R22_UAT`
+
+Si detecta drift del baseline, R22 enlazado prematuramente, provider live habilitado o estado inconsistente, devuelve `CONTROL_POLICY_REPAIR`.
 
 ## Evidencia
 
 Antes de compartir evidencia fuera del Mac:
 
 ```bash
-python3 scripts/wave22_evidence_guard.py /ruta/al/bundle --manifest /tmp/wave22-evidence-manifest.json
+python3 scripts/wave22_evidence_guard.py /ruta/a/evidencia --manifest /tmp/wave22-evidence-manifest.json
 ```
 
-Un resultado `BLOCKED` impide compartir el bundle hasta retirar credenciales o material sensible. El guard no modifica la evidencia.
+Un resultado `BLOCKED` impide compartir el material hasta retirar credenciales o secretos. El guard no modifica la evidencia.
+
+Para crear un bundle final ligado a hashes, baseline y estado UAT:
+
+```bash
+python3 scripts/package_wave22_evidence.py /ruta/a/evidencia \
+  --status-json uat-evidence/WAVE22_UAT_STATUS.json
+```
+
+El resultado incluye:
+
+- evidencia original;
+- manifest de hashes por archivo;
+- resultado del evidence guard;
+- baseline Wave 21;
+- catálogo Wave 22;
+- estado UAT usado al empaquetar;
+- ZIP CRC verificado;
+- SHA-256 externo del bundle.
+
+El bundle **no firma UAT automáticamente**. La autoridad continúa siendo humana e independiente.
 
 ## Lo que sigue bloqueado
 
@@ -63,4 +101,4 @@ Un resultado `BLOCKED` impide compartir el bundle hasta retirar credenciales o m
 - Providers live permanecen bloqueados.
 - Production Sign-Off permanece bloqueado hasta UAT humana.
 
-Documentación detallada: `docs/WAVE22_TARGET_MAC_UAT.md` y `docs/WAVE22_UAT_SCENARIOS.json`.
+Documentación detallada: `docs/WAVE22_TARGET_MAC_UAT.md`, `docs/WAVE22_UAT_SCENARIOS.json` y `docs/WAVE22_UAT_STATUS_TEMPLATE.json`.
