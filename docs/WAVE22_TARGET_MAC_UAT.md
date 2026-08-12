@@ -1,80 +1,125 @@
 # Wave 22 — Target Mac UAT
 
-## Objetivo
+## Objective
 
-Certificar comportamiento humano y nativo sobre el **Mac objetivo**, usando primero la release Wave 21 exacta `0.5.5a1` (`d241696f…b441861`). Wave 22 no es una wave de features.
+Certify real human/native behavior on the target Mac using the exact Wave 21 baseline first. Wave 22 is not a feature wave.
 
-## Regla de baseline
+Certified baseline:
 
-La primera ejecución UAT debe hacerse sobre el ZIP certificado sin modificación. Si aparece un defecto reproducible:
+- App13 version: `0.5.5a1`
+- Exact source ZIP: `BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip`
+- SHA-256: `d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861`
+- Engineering: `472/472 PASS`, `115 modules`, `UX 19/19 PASS`
+- R22 expected state: `PHYSICALLY_UNBOUND`
 
-1. registrar FAIL/BLOCKED + evidencia;
-2. abrir defecto P0–P3;
-3. hacer el cambio mínimo;
-4. añadir prueba de regresión;
-5. generar nuevo candidato y SHA;
-6. repetir el escenario afectado con evidencia fresca y ejecutar regresión completa.
+The first Mac execution must use the unmodified certified Wave 21 source. If a reproducible UAT defect appears:
 
-Nunca se sobrescribe ni se redefine la Wave 21 certificada.
+1. record `FAIL` or `BLOCKED` with concrete evidence;
+2. create a P0–P3 defect;
+3. make the smallest justified fix;
+4. add regression coverage;
+5. create a new candidate and SHA-256;
+6. retest with fresh evidence and full regression.
 
-## Fase A — recuperar fuente exacta
+Never overwrite or redefine the certified Wave 21 baseline.
+
+## One-command entry
+
+Put the exact ZIP in Downloads, Desktop, Documents, or next to the repository and run:
 
 ```bash
-python3 scripts/import_wave21_release.py /ruta/BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip --dry-run
-python3 scripts/import_wave21_release.py /ruta/BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip
+bash RUN_WAVE22_MAC_UAT.command
 ```
 
-Criterio: SHA-256 exacto + ZIP CRC PASS. La fuente queda bajo `app/`; la procedencia queda en `provenance/WAVE21_IMPORT.json`.
+The launcher verifies the archive, imports it strictly, creates/preserves local UAT status, displays the current gate, installs the isolated UAT kit, and opens App13.
 
-## Fase B — preflight del Mac
+## Manual import path
 
 ```bash
-./scripts/wave22_mac_preflight.sh /ruta/BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip
+python3 scripts/import_wave21_release.py /path/to/BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip --dry-run
+python3 scripts/import_wave21_release.py /path/to/BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip
+./scripts/wave22_mac_preflight.sh /path/to/BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip
 ```
 
-Criterio: macOS real, Python disponible, headroom mínimo, SHA exacto e instalador UAT localizable.
+## CORE_UAT
 
-## Fase C — CORE_UAT humano
+Execute with a real operator and fresh evidence:
 
-Ejecutar el kit existente de Wave 21 y completar realmente:
+- `CORE-007` — Campaign → Content → CRM → Inbox without developer assistance.
+- `CORE-008` — understand state, exercise a safe error, recover, and locate the next action.
+- `CORE-009` — verify approvals, budget limits, kill switches, and non-bypassable Paid Media / Automation / Autopilot controls without live side effects.
 
-- `CORE-007`: Campaign → Content → CRM → Inbox sin asistencia del desarrollador.
-- `CORE-008`: navegación, diagnóstico, error seguro y recuperación.
-- `CORE-009`: approvals, límites de presupuesto, kill switches y controles no-bypassables.
+The synthetic CRM task may be used where the certified guide allows it. Record `PASS`, `FAIL`, or `BLOCKED` in the integrated UAT form with a concrete operator note and evidence reference.
 
-Usar el formulario integrado de evidencia. Preferir la CRM Task sintética `SAFE_CORE_UAT_ACTION` donde corresponda. No marcar PASS por inspección o memoria.
+CORE gate requires:
 
-### Gate CORE
+- CORE-007/008/009 `PASS` with fresh evidence;
+- zero open P0/P1 defects;
+- any P2/P3 risk acceptance must have independent actor + rationale;
+- independent human `CORE_UAT` signature.
 
-- CORE-007/008/009 = PASS con evidencia humana fresca.
-- 0 defectos P0/P1 abiertos.
-- P2/P3 solo pueden quedar aceptados con segundo actor + rationale.
-- UAT firmado por actor independiente del operador principal.
+## STANDALONE_MAC_UAT
 
-## Fase D — STANDALONE_MAC_UAT
+After CORE_UAT passes:
 
-Completar:
+- `MAC-001` — native install, startup, and restart on the target Mac.
+- `MAC-002` — Security.framework helper, Keychain/vault write, credential rotation/revocation, and guided recovery; no secret may enter evidence.
+- `MAC-003` — guarded upgrade, launchd fallback, crash-safe recovery, and rollback to a previously verified release.
 
-- `MAC-001`: instalación exacta, startup y restart limpios.
-- `MAC-002`: helper Security.framework/Keychain, escritura segura, rotación/revocación y recuperación guiada.
-- `MAC-003`: upgrade guardado, fallback de launchd, crash recovery y rollback a release previamente verificada.
+Target Mac gate requires:
 
-### Gate Target Mac
+- MAC-001/002/003 `PASS` with fresh evidence;
+- release/evidence tied to the exact candidate SHA;
+- zero open P0/P1 defects;
+- independent `STANDALONE_MAC_UAT` signature;
+- evidence bundle exported and integrity checked.
 
-- MAC-001/002/003 = PASS con evidencia.
-- Release instalada y evidencia ligadas al SHA exacto probado.
-- 0 P0/P1 abiertos.
-- UAT del target Mac firmado por actor independiente.
-- Evidence bundle exportado e íntegro.
+## Machine-readable gate
 
-## Fuera de alcance de Wave 22
+The local state file is intentionally excluded from Git:
 
-- binding físico R22;
-- credenciales/provider live;
-- gasto publicitario real;
+```text
+uat-evidence/WAVE22_UAT_STATUS.json
+```
+
+Evaluate progress at any point:
+
+```bash
+python3 scripts/evaluate_wave22_gate.py
+```
+
+Expected progression:
+
+1. `IMPORT_EXACT_WAVE21`
+2. `CORE_UAT`
+3. `STANDALONE_MAC_UAT`
+4. `BINARIO_R22_UAT`
+
+`CONTROL_POLICY_REPAIR` means the evaluator found drift or a Wave 22 policy violation.
+
+## Evidence closeout
+
+Guard evidence before sharing:
+
+```bash
+python3 scripts/wave22_evidence_guard.py /path/to/evidence
+```
+
+Then package it:
+
+```bash
+python3 scripts/package_wave22_evidence.py /path/to/evidence \
+  --status-json uat-evidence/WAVE22_UAT_STATUS.json
+```
+
+The bundle contains the evidence, per-file hashes, guard output, certified baseline, scenario catalog, UAT status, CRC-checked ZIP, and an external SHA-256 sidecar. Packaging does not create or imply a human UAT signature.
+
+## Out of scope for Wave 22
+
+- physical R22 binding;
+- production/live provider credentials;
+- real ad spend;
 - Production Sign-Off;
-- features grandes no justificadas por defectos UAT.
+- large product features unrelated to a reproducible UAT defect.
 
-## Siguiente gate
-
-Solo después de cerrar Wave 22: **integración física R22 / BINARIO_R22_UAT**. El estado esperado al cerrar esta wave sigue siendo `R22 = PHYSICALLY_UNBOUND` y provider live bloqueado.
+Wave 22 closes with R22 still `PHYSICALLY_UNBOUND` and providers still blocked. Only then may the process advance to physical R22 / `BINARIO_R22_UAT`.
