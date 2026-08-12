@@ -14,15 +14,53 @@ La fuente de partida obligatoria para Wave 22 es:
 
 **No se debe reconstruir Wave 21 de memoria ni desde una wave anterior.** La importación de código se acepta solamente si el ZIP coincide byte-a-byte con el SHA-256 anterior.
 
-## Estado actual
+## Wave 22 — ejecución en el Mac objetivo
 
-Wave 22 = **Target Mac UAT**. No abre features grandes. El orden de trabajo es:
+Coloca el ZIP exacto en `Descargas`, `Escritorio`, `Documentos` o dentro de este repositorio y ejecuta:
 
-1. importar/verificar la Wave 21 exacta;
-2. ejecutar CORE_UAT humano en el Mac real;
-3. corregir únicamente defectos reproducibles encontrados por UAT;
-4. ejecutar STANDALONE_MAC_UAT;
-5. mantener R22 físicamente `UNBOUND` y providers live bloqueados hasta sus gates propios;
-6. preservar evidencia y trazabilidad para Production Sign-Off.
+```bash
+bash RUN_WAVE22_MAC_UAT.command
+```
 
-Los scripts y documentos de continuidad viven en la rama `wave22/target-mac-uat`.
+El launcher:
+
+1. localiza el ZIP exacto;
+2. valida SHA-256 y CRC;
+3. rechaza mezclas con otra fuente;
+4. importa Wave 21 bajo `app/` con provenance;
+5. valida macOS y los entrypoints canónicos del UAT kit;
+6. instala el kit aislado;
+7. abre App13 para iniciar `CORE_UAT`.
+
+La primera UAT usa datos aislados. No debe usar el data dir productivo.
+
+## Orden de gates
+
+1. `CORE-007` — Campaign → Content → CRM → Inbox.
+2. `CORE-008` — navegación, diagnóstico, error seguro y recuperación.
+3. `CORE-009` — approvals, budget limits, kill switches y controles no-bypassables.
+4. Firma independiente de `CORE_UAT`.
+5. `MAC-001` — instalación/startup/restart.
+6. `MAC-002` — Security.framework/Keychain + credential recovery.
+7. `MAC-003` — upgrade/crash recovery/rollback.
+8. Firma independiente de `STANDALONE_MAC_UAT`.
+
+Solo los defectos reproducibles encontrados en UAT justifican cambios de producto en esta wave.
+
+## Evidencia
+
+Antes de compartir evidencia fuera del Mac:
+
+```bash
+python3 scripts/wave22_evidence_guard.py /ruta/al/bundle --manifest /tmp/wave22-evidence-manifest.json
+```
+
+Un resultado `BLOCKED` impide compartir el bundle hasta retirar credenciales o material sensible. El guard no modifica la evidencia.
+
+## Lo que sigue bloqueado
+
+- R22 permanece físicamente `UNBOUND`.
+- Providers live permanecen bloqueados.
+- Production Sign-Off permanece bloqueado hasta UAT humana.
+
+Documentación detallada: `docs/WAVE22_TARGET_MAC_UAT.md` y `docs/WAVE22_UAT_SCENARIOS.json`.
