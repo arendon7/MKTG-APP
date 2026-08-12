@@ -113,18 +113,18 @@ def open_defect(state: dict, *, defect_id: str, severity: str, scenario_id: str,
         "scenario_id": scenario_id,
         "summary": summary.strip(),
         "status": "OPEN",
-        "opened_by": actor,
+        "opened_by": actor.strip(),
         "opened_at_utc": now(),
         "closed_by": None,
         "closed_at_utc": None,
         "resolution": None,
         "retest_evidence_ref": None,
     }
-    if not record["summary"]:
-        raise ValueError("defect summary is required")
+    if not record["id"].strip() or not record["summary"] or not record["opened_by"]:
+        raise ValueError("defect id, summary and actor are required")
     state.setdefault("defect_records", []).append(record)
     recompute_defects(state)
-    event(state, "DEFECT_OPENED", actor, defect_id=defect_id, severity=severity, scenario_id=scenario_id)
+    event(state, "DEFECT_OPENED", actor.strip(), defect_id=defect_id, severity=severity, scenario_id=scenario_id)
 
 
 def close_defect(state: dict, *, defect_id: str, resolution: str, evidence_ref: str, actor: str) -> None:
@@ -133,17 +133,17 @@ def close_defect(state: dict, *, defect_id: str, resolution: str, evidence_ref: 
         raise ValueError(f"unknown defect: {defect_id}")
     if defect.get("status") != "OPEN":
         raise ValueError(f"defect is not OPEN: {defect_id}")
-    if not resolution.strip() or not evidence_ref.strip():
-        raise ValueError("resolution and retest evidence are required")
+    if not resolution.strip() or not evidence_ref.strip() or not actor.strip():
+        raise ValueError("resolution, retest evidence and actor are required")
     defect.update({
         "status": "VERIFIED",
-        "closed_by": actor,
+        "closed_by": actor.strip(),
         "closed_at_utc": now(),
         "resolution": resolution.strip(),
         "retest_evidence_ref": evidence_ref.strip(),
     })
     recompute_defects(state)
-    event(state, "DEFECT_VERIFIED", actor, defect_id=defect_id)
+    event(state, "DEFECT_VERIFIED", actor.strip(), defect_id=defect_id)
 
 
 def record_scenario(
@@ -161,6 +161,8 @@ def record_scenario(
     if not actor.strip() or not evidence_ref.strip() or not note.strip():
         raise ValueError("actor, evidence and operator note are required")
     scenarios = scenario_map(state)
+    if scenario_id not in scenarios:
+        raise ValueError("unknown scenario id")
     item = scenarios[scenario_id]
     if result in {"FAIL", "BLOCKED"}:
         if not defect_id:
@@ -179,17 +181,16 @@ def record_scenario(
         "recorded_at_utc": now(),
         "defect_id": defect_id,
     })
-    # Any re-record invalidates the applicable prior signature.
     if scenario_id in CORE_IDS:
         state["signoff"]["core_uat"] = "NOT_SIGNED"
         state["signoff"]["core_uat_signature"] = None
     else:
         state["signoff"]["standalone_mac_uat"] = "NOT_SIGNED"
         state["signoff"]["standalone_mac_uat_signature"] = None
-    event(state, "SCENARIO_RECORDED", actor, scenario_id=scenario_id, result=result, defect_id=defect_id)
+    event(state, "SCENARIO_RECORDED", actor.strip(), scenario_id=scenario_id, result=result, defect_id=defect_id)
 
 
-def sign_profile(state: dict, *, profile: str, actor: str) -> None:
+def sign_profile(state: dict, *, profile: str, actor: str, rationale: str | None = None) -> None:
     scenarios = scenario_map(state)
     ids = CORE_IDS if profile == "core" else MAC_IDS
     label = "CORE_UAT" if profile == "core" else "STANDALONE_MAC_UAT"
@@ -199,32 +200,41 @@ def sign_profile(state: dict, *, profile: str, actor: str) -> None:
     incomplete = [sid for sid in ids if scenarios[sid].get("status") != "PASS"]
     if incomplete:
         raise ValueError(f"cannot sign {label}; scenarios not PASS: {', '.join(incomplete)}")
-    if any(int(state.get("defects", {}).get(k, 0) or 0) for k in ("open_p0", "open_p1")):
+    if any(not str(scenarios[sid].get("evidence_ref") or "").strip() for sid in ids):
+        raise ValueError(f"cannot sign {label}; every PASS requires evidence")
+
+    defects = state.get("defects", {})
+    if any(int(defects.get(k, 0) or 0) for k in ("open_p0", "open_p1")):
         raise ValueError(f"cannot sign {label} with open P0/P1 defects")
+    residual = int(defects.get("open_p2", 0) or 0) + int(defects.get("open_p3", 0) or 0)
+    if residual and not str(rationale or "").strip():
+        raise ValueError(f"cannot sign {label} with open P2/P3 without explicit --rationale")
 
     operators = {str(scenarios[sid].get("operator") or "").strip() for sid in ids}
     operators.discard("")
-    if not actor.strip():
+    signer = actor.strip()
+    if not signer:
         raise ValueError("signing actor is required")
-    if actor.strip() in operators:
+    if signer in operators:
         raise ValueError("independent sign-off actor must differ from scenario operator(s)")
 
     signature = {
-        "actor": actor.strip(),
+        "actor": signer,
         "signed_at_utc": now(),
         "scenario_evidence": {sid: scenarios[sid].get("evidence_ref") for sid in ids},
+        "residual_p2_p3": residual,
+        "risk_acceptance_rationale": str(rationale or "").strip() or None,
     }
     state["signoff"][key] = "SIGNED"
     state["signoff"][signature_key] = signature
-    state["signoff"]["independent_second_actor"] = actor.strip()
+    state["signoff"]["independent_second_actor"] = signer
     state["authority"] = "HUMAN_UAT_IN_PROGRESS" if profile == "core" else "HUMAN_UAT_SIGNED"
-    event(state, "PROFILE_SIGNED", actor, profile=label)
+    event(state, "PROFILE_SIGNED", signer, profile=label, residual_p2_p3=residual)
 
 
 def init_state(template: Path, output: Path) -> dict:
     if output.exists():
-        state = normalize(read_json(output))
-        return state
+        return normalize(read_json(output))
     state = normalize(read_json(template))
     state["created_at_utc"] = now()
     event(state, "STATUS_INITIALIZED", "SYSTEM")
@@ -270,6 +280,7 @@ def main() -> int:
     p_sign = sub.add_parser("sign")
     p_sign.add_argument("profile", choices=("core", "mac"))
     p_sign.add_argument("--actor", required=True)
+    p_sign.add_argument("--rationale")
 
     sub.add_parser("show")
     args = parser.parse_args()
@@ -286,7 +297,7 @@ def main() -> int:
             elif args.command == "defect-verify":
                 close_defect(state, defect_id=args.defect_id, resolution=args.resolution, evidence_ref=args.evidence, actor=args.actor)
             elif args.command == "sign":
-                sign_profile(state, profile=args.profile, actor=args.actor)
+                sign_profile(state, profile=args.profile, actor=args.actor, rationale=args.rationale)
             elif args.command == "show":
                 pass
             if args.command != "show":
