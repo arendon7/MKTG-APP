@@ -28,7 +28,16 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py' -v
 
       - name: Shell syntax
-        run: bash -n scripts/wave22_mac_preflight.sh
+        run: |
+          bash -n scripts/wave22_mac_preflight.sh
+          bash -n RUN_WAVE22_MAC_UAT.command
+
+      - name: Canonical UAT entrypoints
+        run: |
+          grep -q "install_app13_uat_kit_macos.sh" scripts/wave22_mac_preflight.sh
+          grep -q "run_app13_uat_kit.sh" scripts/wave22_mac_preflight.sh
+          grep -q "install_app13_uat_kit_macos.sh" RUN_WAVE22_MAC_UAT.command
+          grep -q "run_app13_uat_kit.sh" RUN_WAVE22_MAC_UAT.command
 
       - name: Baseline contract sanity
         run: |
