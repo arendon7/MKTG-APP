@@ -1,0 +1,74 @@
+{
+  "schema": "binario.marketing.full-mac-app-target.v1",
+  "product": "Binario Marketing & Growth IA",
+  "app_number": 13,
+  "baseline": {
+    "version": "0.5.5a1",
+    "source_zip": "BINARIO_MARKETING_APP13_INTEGRATED_F15_F25_WAVE21_CORE_UAT_SOURCE.zip",
+    "sha256": "d241696f9404a2373ed02a7c7c0246fa11b4a52afaedc4e1b60a03de2b441861",
+    "certified_tests": 472,
+    "certified_modules": 115,
+    "certified_manifest_entries": 437,
+    "ux_checks": 19
+  },
+  "deliverable": {
+    "application_name": "Binario Marketing IA.app",
+    "install_location": "~/Applications/Binario Marketing IA.app",
+    "persistent_data": "~/Library/Application Support/Binario IA/Marketing Growth",
+    "runtime_mode": "LOCAL_LOOPBACK_ONLY",
+    "must_bundle_source": true,
+    "must_bundle_python_runtime": true,
+    "must_not_require_homebrew_at_runtime": true,
+    "must_not_require_node_at_runtime": true,
+    "must_not_require_manual_terminal_for_normal_launch": true,
+    "normal_launch": "Finder / Spotlight / Applications",
+    "update_model": "GUARDED_VERSIONED_RELEASE_WITH_ROLLBACK"
+  },
+  "required_surfaces": [
+    "integrated frontend / home",
+    "campaign workspace",
+    "content workspace",
+    "CRM / Customer 360",
+    "Inbox / human handoff",
+    "Growth",
+    "Paid Media",
+    "Automation",
+    "Autopilot",
+    "Action Center",
+    "System diagnostics",
+    "User Acceptance Testing",
+    "Release / rollback controls"
+  ],
+  "native_requirements": [
+    "macOS .app bundle",
+    "embedded CPython runtime",
+    "Security.framework / Keychain helper",
+    "loopback-only local service",
+    "dynamic or collision-safe port handling",
+    "startup health probe",
+    "clean restart",
+    "crash recovery",
+    "guarded upgrade",
+    "rollback",
+    "persistent user data outside application bundle"
+  ],
+  "readiness_gates": {
+    "source_payload_exact": "REQUIRED",
+    "source_payload_audit": "REQUIRED",
+    "full_app_bundle_build": "REQUIRED",
+    "bundle_self_audit": "REQUIRED",
+    "target_mac_core_uat": "REQUIRED",
+    "target_mac_native_uat": "REQUIRED",
+    "open_p0_p1": 0,
+    "r22_expected_before_next_gate": "PHYSICALLY_UNBOUND",
+    "live_providers_expected_before_next_gate": "BLOCKED"
+  },
+  "not_ready_when": [
+    "only the Wave 22 control kit exists",
+    "the exact Wave 21 source payload is missing",
+    "the application depends on Homebrew or Node for normal launch",
+    "the frontend or any certified App13 module is omitted",
+    "the application has not been launched and tested on the target Mac",
+    "human CORE_UAT or STANDALONE_MAC_UAT is unsigned"
+  ]
+}
