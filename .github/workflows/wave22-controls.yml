@@ -39,6 +39,7 @@ jobs:
         run: |
           bash -n scripts/wave22_mac_preflight.sh
           bash -n RUN_WAVE22_MAC_UAT.command
+          bash -n scripts/bootstrap_full_mac_python.sh
           bash -n scripts/build_full_mac_app.sh
 
       - name: Canonical UAT entrypoints and integrity hook
@@ -50,7 +51,12 @@ jobs:
           grep -q "verify_wave22_control_kit.py" RUN_WAVE22_MAC_UAT.command
           grep -q "audit_full_app_payload.py" scripts/build_full_mac_app.sh
           grep -q "audit_full_mac_bundle.py" scripts/build_full_mac_app.sh
-          grep -q "BINARIO_EMBEDDED_PYTHON" scripts/build_full_mac_app.sh
+          grep -q "bootstrap_full_mac_python.sh" scripts/build_full_mac_app.sh
+          grep -q "full_mac_python_runtime.env" scripts/bootstrap_full_mac_python.sh
+          if grep -q "BINARIO_EMBEDDED_PYTHON" scripts/build_full_mac_app.sh; then
+            echo "host-provided embedded Python path is forbidden in canonical FULL MAC builder" >&2
+            exit 1
+          fi
 
       - name: Baseline and UAT contract sanity
         run: |
@@ -151,6 +157,8 @@ jobs:
           cp scripts/verify_wave22_control_kit.py "$KIT/scripts/"
           cp scripts/audit_full_app_payload.py "$KIT/scripts/"
           cp scripts/audit_full_mac_bundle.py "$KIT/scripts/"
+          cp scripts/bootstrap_full_mac_python.sh "$KIT/scripts/"
+          cp scripts/full_mac_python_runtime.env "$KIT/scripts/"
           cp scripts/build_full_mac_app.sh "$KIT/scripts/"
           cp docs/BASELINE_WAVE21.json "$KIT/docs/"
           cp docs/WAVE22_TARGET_MAC_UAT.md "$KIT/docs/"
